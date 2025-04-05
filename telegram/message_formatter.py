@@ -16,11 +16,11 @@ def make_message_for_new_key(app: str, access_key: str,
                              server_id: ServerId) -> str:
    if app == "outline":
       message_to_send = dedent(
-   f"""Your key:
+   f"""Твой ключ для доступа к VPN:
       \n<code>{access_key}</code>
       \nTap to copy.
-      \nServer is located in: <b>{servers[server_id].location}</b>
-      \nThis key should be pased in <b>Outline Client.</b>
+      \n Сервер VPN in: <b>{servers[server_id].location}</b>
+      \nВставь полученный ключ в клиент <b>Outline Client.</b>
       """)
 
    else:
