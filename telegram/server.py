@@ -43,7 +43,7 @@ def send_status(message):
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Hey! This bot is used for creating Outline keys.", reply_markup=_make_main_menu_markup())
+    bot.send_message(message.chat.id, "Привет, этот бот позволит получить VPN без ограничения по скорости. Верни доступ к ресурсам Youtube, Instagramm, Twitter, TikTok.", reply_markup=_make_main_menu_markup())
 
 @bot.message_handler(commands=['help'])
 @authorize
