@@ -19,7 +19,9 @@ assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 
 # Константа для лимита трафика (50 ГБ)
-DEFAULT_DATA_LIMIT_GB = 50
+SUPPORT_CANCEL_BUTTON = "❌ Отменить запрос"
+waiting_for_support = False
+DEFAULT_DATA_LIMIT_GB = 50 # Установленный лимит траффика
 
 # --- ACCESS CONTROL DECORATOR ---
 def authorize(func):
@@ -39,7 +41,7 @@ def authorize(func):
 @authorize
 def send_status(message):
     monitoring.send_api_status()
-
+    
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
@@ -48,7 +50,19 @@ def send_welcome(message):
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
-    bot.send_message(message.chat.id, f.make_help_message())
+    global waiting_for_support
+    
+    waiting_for_support = True
+    
+    # Создаем клавиатуру только с кнопкой отмены
+    cancel_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    cancel_markup.add(types.KeyboardButton(SUPPORT_CANCEL_BUTTON))
+    
+    bot.send_message(
+        message.chat.id,
+        "✍️ Опишите свою проблему. Для отмены нажмите кнопку ниже.",
+        reply_markup=cancel_markup
+    )
 
 @bot.message_handler(commands=['servers'])
 @authorize
@@ -58,7 +72,22 @@ def send_servers_list(message):
 @bot.message_handler(content_types=['text'])
 @authorize
 def answer(message):
+    global waiting_for_support
+    
     text = message.text.strip()
+    
+    if waiting_for_support:
+        if text == SUPPORT_CANCEL_BUTTON:
+            waiting_for_support = False
+            bot.send_message(
+                message.chat.id,
+                "Запрос в поддержку отменён.",
+                reply_markup=_make_main_menu_markup()
+            )
+        else:
+            send_to_support(message)
+        return
+    
     if text == "🔑 Получить ключ VPN":
         server_id = DEFAULT_SERVER_ID
         key_name = _form_key_name(message)
@@ -68,9 +97,7 @@ def answer(message):
     elif text == "🌐 Скачать клиент VPN":
         bot.send_message(message.chat.id, f.make_download_message(), disable_web_page_preview=True)
     elif text == "❓ Помощь":
-        bot.send_message(message.chat.id, 
-                         "Опишите свою проблему. Среднее ожидание ответа от поддержки от 10 до 60 минут. Ваше сообщение будет отправлено в поддержку.")
-        bot.register_next_step_handler(message, send_to_support)
+        send_help(message)
     elif text == "💰 Поддержать VPN":
         send_support_message(message)
     elif text.startswith("/newkey"):
@@ -80,6 +107,7 @@ def answer(message):
         bot.send_message(message.chat.id, "Unknown command.", reply_markup=_make_main_menu_markup())
 
 # --- CORE FUNCTIONS ---
+
 def _make_new_key(message, server_id: ServerId, key_name: str):
     user_id = message.chat.id
     old_key_id = db.get_user_key(user_id)
@@ -119,7 +147,6 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
             _send_error_message(message, "API error: cannot rename the key")
         except InvalidServerIdError:
             bot.send_message(message.chat.id, "The server id does not exist.")
-
 
 def _send_existing_key(message):
     user_id = message.chat.id
@@ -171,27 +198,26 @@ def _make_main_menu_markup() -> types.ReplyKeyboardMarkup:
     return markup
 
 def send_to_support(message):
-    # Ваш Telegram ID для получения сообщений
-    your_telegram_id = 245413138  # Замените на свой ID
+    global waiting_for_support
+    
+    your_telegram_id = 245413138
     user_message = message.text.strip()
     
-    # Получаем username пользователя
     username = message.from_user.username
+    user_link = f'<a href="https://t.me/{username}">пользователя</a>' if username else f'<a href="tg://user?id={message.from_user.id}">пользователя</a>'
     
-    if username:
-        # Если username есть, создаем ссылку на его профиль
-        user_profile_link = f"https://t.me/{username}"
-    else:
-        # Если username нет, отправляем ссылку с user_id
-        user_profile_link = f"https://t.me/id{message.from_user.id}"
+    bot.send_message(
+        your_telegram_id,
+        f"📩 Новый запрос от {user_link}:\n\n{user_message}",
+        parse_mode="HTML"
+    )
     
-    # Отправка сообщения вам в личку, добавляем ссылку на профиль пользователя
-    bot.send_message(your_telegram_id, f"Сообщение от пользователя {user_profile_link}:\n{user_message}")
-    
-    # Информируем пользователя, что его запрос принят
-    bot.send_message(message.chat.id, "Ваш запрос отправлен в поддержку. Мы ответим в ближайшее время.",
-                     reply_markup=_make_main_menu_markup())  # Возвращаем пользователя к основному меню
-
+    waiting_for_support = False
+    bot.send_message(
+        message.chat.id,
+        "✅ Ваше сообщение отправлено в поддержку!",
+        reply_markup=_make_main_menu_markup()
+    )
 
 def send_support_message(message):
     # Отправляем сообщение с информацией для поддержки
