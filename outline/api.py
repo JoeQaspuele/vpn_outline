@@ -1,6 +1,7 @@
 import requests
 import json
 from urllib3.exceptions import InsecureRequestWarning
+from typing import Optional
 
 from helpers.aliases import AccessUrl, KeyId, ServerId
 from helpers.classes import OutlineKey
@@ -10,22 +11,34 @@ from settings import servers
 # Отключение предупреждений SSL
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
-def get_new_key(key_name: str | None, server_id: ServerId) -> OutlineKey:
+def get_new_key(key_name: Optional[str], server_id: ServerId, data_limit_gb: int = 50) -> OutlineKey:
+    """
+    Создает новый ключ с лимитом трафика (по умолчанию 50 ГБ).
+    
+    :param key_name: Имя ключа (если None, будет сгенерировано автоматически)
+    :param server_id: ID сервера Outline
+    :param data_limit_gb: Лимит трафика в гигабайтах
+    :return: Объект OutlineKey
+    """
     if servers.get(server_id) is None:
         raise InvalidServerIdError
 
+    # Создаем ключ
     api_response = _create_new_key(server_id)
     key_id = api_response['id']
     access_url = api_response['accessUrl']
 
+    # Устанавливаем имя (если не передано - генерируем)
     if key_name is None:
-        key_name = "key_id:" + key_id
+        key_name = f"key_{key_id[:8]}"
 
     _rename_key(key_id, key_name, server_id)
-    _set_access_key_data_limit(key_id, 50 * 1024 * 1024 * 1024, server_id)  # Установка лимита в 50ГБ
+    
+    # Устанавливаем лимит трафика
+    if data_limit_gb > 0:  # Если 0 - безлимитный ключ
+        _set_access_key_data_limit(key_id, data_limit_gb * 1024**3, server_id)
 
-    key = OutlineKey(kid=key_id, name=key_name, access_url=access_url)
-    return key
+    return OutlineKey(kid=key_id, name=key_name, access_url=access_url)
 
 def get_key(key_name: str, server_id: ServerId) -> OutlineKey:
     if servers.get(server_id) is None:
@@ -62,6 +75,20 @@ def check_api_status() -> dict:
         r = requests.get(url, verify=False)
         api_status_codes[server_id] = str(r.status_code)
     return api_status_codes
+
+def _set_access_key_data_limit(key_id: KeyId, limit_in_bytes: int, server_id: ServerId) -> None:
+    """
+    Устанавливает лимит трафика для ключа.
+    
+    :param key_id: ID ключа
+    :param limit_in_bytes: Лимит в байтах
+    :param server_id: ID сервера
+    """
+    limit_url = servers[server_id].api_url + f'/access-keys/{key_id}/data-limit'
+    headers = {"Content-Type": "application/json"}
+    data = {"limit": {"bytes": limit_in_bytes}}  # Важно: Outline ожидает {"bytes": число}
+    r = requests.put(limit_url, headers=headers, json=data, verify=False)
+    r.raise_for_status()
 
 def _create_new_key(server_id: ServerId) -> dict:
     request_url = servers[server_id].api_url + '/access-keys'
