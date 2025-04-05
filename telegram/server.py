@@ -1,6 +1,6 @@
 import telebot
 from telebot import types
-from settings import (
+from telegram.keyboards import main_menu, support_cancel_markup 
     BOT_API_TOKEN,
     DEFAULT_SERVER_ID,
     BLACKLISTED_CHAT_IDS,
@@ -45,7 +45,7 @@ def send_status(message):
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Привет, этот бот позволит получить VPN без ограничения по скорости. Верни доступ к ресурсам Youtube, Instagramm, Twitter, TikTok.", reply_markup=_make_main_menu_markup())
+    bot.send_message(message.chat.id, "Привет, этот бот позволит получить VPN без ограничения по скорости. Верни доступ к ресурсам Youtube, Instagramm, Twitter, TikTok.", reply_markup=main_menu())
 
 @bot.message_handler(commands=['help'])
 @authorize
@@ -54,9 +54,8 @@ def send_help(message):
     
     waiting_for_support = True
     
-    # Создаем клавиатуру только с кнопкой отмены
-    cancel_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    cancel_markup.add(types.KeyboardButton(SUPPORT_CANCEL_BUTTON))
+    # Используем готовую клавиатуру
+    cancel_markup = support_cancel_markup()
     
     bot.send_message(
         message.chat.id,
@@ -82,7 +81,7 @@ def answer(message):
             bot.send_message(
                 message.chat.id,
                 "Запрос в поддержку отменён.",
-                reply_markup=_make_main_menu_markup()
+                reply_markup=main_menu()
             )
         else:
             send_to_support(message)
@@ -104,7 +103,7 @@ def answer(message):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
     else:
-        bot.send_message(message.chat.id, "Unknown command.", reply_markup=_make_main_menu_markup())
+        bot.send_message(message.chat.id, "Unknown command.", reply_markup=main_menu())
 
 # --- CORE FUNCTIONS ---
 
@@ -185,18 +184,6 @@ def _send_error_message(message, error_message):
         message.from_user.last_name
     )
 
-
-def _make_main_menu_markup() -> types.ReplyKeyboardMarkup:
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(
-        types.KeyboardButton("🔑 Получить ключ VPN"),
-        types.KeyboardButton("🗝️  Мой ключ VPN"),
-        types.KeyboardButton("🌐 Скачать клиент VPN"),
-        types.KeyboardButton("❓ Помощь"),
-        types.KeyboardButton("💰 Поддержать VPN")
-    )
-    return markup
-
 def send_to_support(message):
     global waiting_for_support
     
@@ -216,7 +203,7 @@ def send_to_support(message):
     bot.send_message(
         message.chat.id,
         "✅ Ваше сообщение отправлено в поддержку!",
-        reply_markup=_make_main_menu_markup()
+        reply_markup=main_menu()
     )
 
 def send_support_message(message):
