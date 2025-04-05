@@ -13,11 +13,13 @@ import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
-import db  # <-- наш новый модуль для базы данных
+import db
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 
+# Константа для лимита трафика (50 ГБ)
+DEFAULT_DATA_LIMIT_GB = 50
 
 # --- ACCESS CONTROL DECORATOR ---
 def authorize(func):
@@ -32,31 +34,26 @@ def authorize(func):
         return func(message)
     return wrapper
 
-
 # --- HANDLERS ---
 @bot.message_handler(commands=['status'])
 @authorize
 def send_status(message):
     monitoring.send_api_status()
 
-
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
     bot.send_message(message.chat.id, "Hey! This bot is used for creating Outline keys.", reply_markup=_make_main_menu_markup())
-
 
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
     bot.send_message(message.chat.id, f.make_help_message())
 
-
 @bot.message_handler(commands=['servers'])
 @authorize
 def send_servers_list(message):
     bot.send_message(message.chat.id, f.make_servers_list())
-
 
 @bot.message_handler(content_types=['text'])
 @authorize
@@ -82,24 +79,16 @@ def answer(message):
     else:
         bot.send_message(message.chat.id, "Unknown command.", reply_markup=_make_main_menu_markup())
 
-
 # --- CORE FUNCTIONS ---
 def _make_new_key(message, server_id: ServerId, key_name: str):
     user_id = message.chat.id
-
-    # Проверяем, есть ли уже ключ у пользователя
     old_key_id = db.get_user_key(user_id)
 
     if old_key_id:
-        # Если ключ существует, проверяем, был ли он удалён
         if db.is_key_deleted(old_key_id):
-            # Ключ был удалён, создаём новый ключ
             try:
-                # Удаляем старый ключ из базы (если он был удалён вручную)
                 db.remove_user_key(user_id)
-                
-                # Создаём новый ключ
-                key = outline.get_new_key(key_name, server_id)
+                key = outline.get_new_key(key_name, server_id, data_limit_gb=DEFAULT_DATA_LIMIT_GB)  # Добавлен лимит
                 db.save_user_key(user_id, key.kid)
                 _send_key(message, key, server_id)
             except KeyCreationError:
@@ -109,28 +98,19 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
             except InvalidServerIdError:
                 bot.send_message(message.chat.id, "The server id does not exist.")
         else:
-            # Ключ не удалён, отправляем сообщение, что у пользователя уже есть ключ
             try:
                 key = outline.get_key_by_id(old_key_id, server_id)
                 access_url = key.access_url
                 bot.send_message(message.chat.id, f"У вас уже есть ключ: <code>{access_url}</code>\n\nСкопируйте и вставьте его в Outline.")
             except KeyError:
-                # Если ключ не найден в API, возможно, он был удалён в Outline
-                key = outline.get_new_key(key_name, server_id)
+                key = outline.get_new_key(key_name, server_id, data_limit_gb=DEFAULT_DATA_LIMIT_GB)  # Добавлен лимит
                 db.save_user_key(user_id, key.kid)
                 _send_key(message, key, server_id)
-            except KeyCreationError:
-               _send_error_message(message, "API error: cannot create the key")
-            except KeyRenamingError:
-               _send_error_message(message, "API error: cannot rename the key")
-            except InvalidServerIdError:
-               bot.send_message(message.chat.id, "The server id does not exist.")
             except Exception as e:
                 _send_error_message(message, f"Ошибка при получении ключа: {e}")
     else:
-        # Если ключа нет, создаём новый
         try:
-            key = outline.get_new_key(key_name, server_id)
+            key = outline.get_new_key(key_name, server_id, data_limit_gb=DEFAULT_DATA_LIMIT_GB)  # Добавлен лимит
             db.save_user_key(user_id, key.kid)
             _send_key(message, key, server_id)
         except KeyCreationError:
