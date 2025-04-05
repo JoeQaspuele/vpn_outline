@@ -2,7 +2,7 @@
     "outline_servers": [
         {
             "id": "LUMEN",
-            "api_url": "https://194.87.250.47:55391/x0q54XSM0K9aOSwpWzrXVg",
+            "api_url": "____",
             "location": "НИДЕРЛАНДЫ🇳🇱",
             "is_enabled": true
         },
@@ -16,8 +16,8 @@
 
     "tg_bot_settings":
         {
-            "main_bot_api_token": "7757169685:AAGoAeAzp8-bnIRgytMrbkddVnaB_u3wer0",
-            "monitor_bot_api_token": "7715369155:AAFEr5xvag6uM1Nv7AyPqYN56vB-c51l-No",
+            "main_bot_api_token": "your_token_tgbot1",
+            "monitor_bot_api_token": "your_token_tgbot2",
             "admin_chat_id": "245413138",
 
             "default_server_id": "LUMEN",
