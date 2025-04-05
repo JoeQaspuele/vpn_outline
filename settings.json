@@ -1,0 +1,42 @@
+{
+    "outline_servers": [
+        {
+            "id": "LUMEN",
+            "api_url": "https://194.87.250.47:55391/x0q54XSM0K9aOSwpWzrXVg",
+            "location": "НИДЕРЛАНДЫ🇳🇱",
+            "is_enabled": true
+        },
+        {
+            "id": "",
+            "api_url": "",
+            "location": "",
+            "is_enabled": false
+        }
+    ],
+
+    "tg_bot_settings":
+        {
+            "main_bot_api_token": "7757169685:AAGoAeAzp8-bnIRgytMrbkddVnaB_u3wer0",
+            "monitor_bot_api_token": "7715369155:AAFEr5xvag6uM1Nv7AyPqYN56vB-c51l-No",
+            "admin_chat_id": "245413138",
+
+            "default_server_id": "LUMEN",
+
+            "enable_blacklist": false,
+            "enable_whitelist": false,
+
+            "blacklisted_chat_ids": ["", ""],
+            "whitelisted_chat_ids": ["", ""]
+        },
+
+    "outline_dl_links":
+        {
+            "windows" : "https://www.softportal.com/getsoft-48799-outline-vpn-1.html",
+            "macos"   : "https://apps.apple.com/ru/app/outline-secure-internet-access/id1356178125?mt=12",
+            "linux"   : "https://s3.amazonaws.com/outline-releases/client/linux/stable/Outline-Client.AppImage",
+            "chromeos": "https://play.google.com/store/apps/details?id=org.outline.android.client",
+            "ios"     : "https://apps.apple.com/ru/app/outline-app/id1356177741",
+            "android" : "https://play.google.com/store/apps/details?id=org.outline.android.client",
+            "apk"     : "https://s3.amazonaws.com/outline-releases/client/android/stable/Outline-Client.apk"
+        }
+}
