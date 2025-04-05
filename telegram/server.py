@@ -8,6 +8,18 @@ from telegram.keyboards import main_menu, support_cancel_markup
     ENABLE_BLACKLIST,
     ENABLE_WHITELIST
 )
+from telegram.messages import (
+    WELCOME_MESSAGE,
+    HELP_PROMPT,
+    SUPPORT_SUCCESS,
+    SUPPORT_CANCEL,
+    KEY_RECEIVED,
+    KEY_EXISTS,
+    ERROR_KEY_NOT_FOUND,
+    ERROR_DEFAULT,
+    BUTTONS,
+    HELP_PROJECT
+)
 import telegram.monitoring as monitoring
 import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
