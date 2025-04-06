@@ -8,18 +8,7 @@ from telegram.keyboards import main_menu, support_cancel_markup
     ENABLE_BLACKLIST,
     ENABLE_WHITELIST
 )
-from telegram.messages import (
-    WELCOME_MESSAGE,
-    HELP_PROMPT,
-    SUPPORT_SUCCESS,
-    SUPPORT_CANCEL,
-    KEY_RECEIVED,
-    KEY_EXISTS,
-    ERROR_KEY_NOT_FOUND,
-    ERROR_DEFAULT,
-    BUTTONS,
-    HELP_PROJECT
-)
+from telegram.messages import Messages, Errors, Buttons, Donation
 import telegram.monitoring as monitoring
 import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
@@ -30,9 +19,8 @@ import db
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 
-# Константа для лимита трафика (50 ГБ)
-SUPPORT_CANCEL_BUTTON = "❌ Отменить запрос"
 waiting_for_support = False
+# Константа для лимита трафика (50 ГБ)
 DEFAULT_DATA_LIMIT_GB = 50 # Установленный лимит траффика
 
 # --- ACCESS CONTROL DECORATOR ---
@@ -53,26 +41,21 @@ def authorize(func):
 @authorize
 def send_status(message):
     monitoring.send_api_status()
-    
+
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Привет, этот бот позволит получить VPN без ограничения по скорости. Верни доступ к ресурсам Youtube, Instagramm, Twitter, TikTok.", reply_markup=main_menu())
+    bot.send_message(message.chat.id, Messages.WELCOME, reply_markup=main_menu())
 
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
     global waiting_for_support
-    
     waiting_for_support = True
-    
-    # Используем готовую клавиатуру
-    cancel_markup = support_cancel_markup()
-    
     bot.send_message(
         message.chat.id,
-        "✍️ Опишите свою проблему. Для отмены нажмите кнопку ниже.",
-        reply_markup=cancel_markup
+        Messages.HELP_PROMPT,
+        reply_markup=support_cancel_markup()
     )
 
 @bot.message_handler(commands=['servers'])
@@ -87,77 +70,138 @@ def answer(message):
     
     text = message.text.strip()
     
+    # Режим ожидания сообщения в поддержку
     if waiting_for_support:
-        if text == SUPPORT_CANCEL_BUTTON:
+        if text == Buttons.CANCEL:
             waiting_for_support = False
             bot.send_message(
                 message.chat.id,
-                "Запрос в поддержку отменён.",
+                Messages.REQUEST_CANCELED,
                 reply_markup=main_menu()
             )
         else:
             send_to_support(message)
         return
     
-    if text == "🔑 Получить ключ VPN":
-        server_id = DEFAULT_SERVER_ID
-        key_name = _form_key_name(message)
-        _make_new_key(message, server_id, key_name)
-    elif text == "🗝️  Мой ключ VPN":
-        _send_existing_key(message)
-    elif text == "🌐 Скачать клиент VPN":
-        bot.send_message(message.chat.id, f.make_download_message(), disable_web_page_preview=True)
-    elif text == "❓ Помощь":
-        send_help(message)
-    elif text == "💰 Поддержать VPN":
-        send_support_message(message)
-    elif text.startswith("/newkey"):
+    # Обработка основных команд
+    command_handlers = {
+        Buttons.GET_KEY: lambda: _make_new_key(
+            message, 
+            DEFAULT_SERVER_ID, 
+            _form_key_name(message)
+        ),
+        Buttons.MY_KEY: lambda: _send_existing_key(message),
+        Buttons.DOWNLOAD: lambda: bot.send_message(
+            message.chat.id, 
+            f.make_download_message(), 
+            disable_web_page_preview=True
+        ),
+        Buttons.SUPPORT: send_help,
+        Buttons.DONATE: send_support_message
+    }
+    
+    if text.startswith("/newkey"):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
+    elif text in command_handlers:
+        command_handlers[text]()
     else:
-        bot.send_message(message.chat.id, "Unknown command.", reply_markup=main_menu())
+        bot.send_message(
+            message.chat.id,
+            Errors.UNKNOWN_COMMAND,
+            reply_markup=main_menu()
+        )
 
 # --- CORE FUNCTIONS ---
 
 def _make_new_key(message, server_id: ServerId, key_name: str):
+    """
+    Создает новый VPN-ключ или обрабатывает существующий ключ пользователя.
+    
+    Логика работы:
+    1. Проверяет наличие старого ключа
+    2. Если ключ был удален - создает новый
+    3. Если ключ активен - показывает его пользователю
+    4. Если ключа нет - создает новый
+    
+    Args:
+        message: Объект сообщения от пользователя
+        server_id: ID сервера Outline
+        key_name: Имя для нового ключа
+    """
     user_id = message.chat.id
     old_key_id = db.get_user_key(user_id)
 
+    # Обработка случая, когда у пользователя уже есть ключ
     if old_key_id:
+        # Если ключ был помечен как удаленный
         if db.is_key_deleted(old_key_id):
             try:
+                # Шаг 1: Очищаем старые данные
                 db.remove_user_key(user_id)
-                key = outline.get_new_key(key_name, server_id, data_limit_gb=DEFAULT_DATA_LIMIT_GB)  # Добавлен лимит
+                
+                # Шаг 2: Создаем новый ключ с лимитом трафика
+                key = outline.get_new_key(
+                    key_name=key_name,
+                    server_id=server_id,
+                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
+                )
+                
+                # Шаг 3: Сохраняем новый ключ
                 db.save_user_key(user_id, key.kid)
+                
+                # Шаг 4: Отправляем ключ пользователю
                 _send_key(message, key, server_id)
+                
             except KeyCreationError:
-                _send_error_message(message, "API error: cannot create the key")
+                _send_error_message(message, Errors.API_CREATION_FAILED)
             except KeyRenamingError:
-                _send_error_message(message, "API error: cannot rename the key")
+                _send_error_message(message, Errors.API_RENAMING_FAILED)
             except InvalidServerIdError:
-                bot.send_message(message.chat.id, "The server id does not exist.")
+                bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
+        
+        # Если ключ активен
         else:
             try:
+                # Пытаемся получить существующий ключ
                 key = outline.get_key_by_id(old_key_id, server_id)
-                access_url = key.access_url
-                bot.send_message(message.chat.id, f"У вас уже есть ключ: <code>{access_url}</code>\n\nСкопируйте и вставьте его в Outline.")
+                bot.send_message(
+                    message.chat.id,
+                    Messages.key_info(key.access_url, is_new=False),
+                    parse_mode="HTML"
+                )
+                
             except KeyError:
-                key = outline.get_new_key(key_name, server_id, data_limit_gb=DEFAULT_DATA_LIMIT_GB)  # Добавлен лимит
+                # Если ключ не найден (например, удален вручную в Outline)
+                key = outline.get_new_key(
+                    key_name=key_name,
+                    server_id=server_id,
+                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
+                )
                 db.save_user_key(user_id, key.kid)
                 _send_key(message, key, server_id)
+                
             except Exception as e:
-                _send_error_message(message, f"Ошибка при получении ключа: {e}")
+                _send_error_message(message, Errors.UNEXPECTED_ERROR.format(error=str(e)))
+    
+    # Если у пользователя нет ключа
     else:
         try:
-            key = outline.get_new_key(key_name, server_id, data_limit_gb=DEFAULT_DATA_LIMIT_GB)  # Добавлен лимит
+            # Создаем полностью новый ключ
+            key = outline.get_new_key(
+                key_name=key_name,
+                server_id=server_id,
+                data_limit_gb=DEFAULT_DATA_LIMIT_GB
+            )
             db.save_user_key(user_id, key.kid)
             _send_key(message, key, server_id)
+            
         except KeyCreationError:
-            _send_error_message(message, "API error: cannot create the key")
+            _send_error_message(message, Errors.API_CREATION_FAILED)
         except KeyRenamingError:
-            _send_error_message(message, "API error: cannot rename the key")
+            _send_error_message(message, Errors.API_RENAMING_FAILED)
         except InvalidServerIdError:
-            bot.send_message(message.chat.id, "The server id does not exist.")
+            bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
 
 def _send_existing_key(message):
     user_id = message.chat.id
@@ -219,12 +263,11 @@ def send_to_support(message):
     )
 
 def send_support_message(message):
-    # Отправляем сообщение с информацией для поддержки
-    bot.send_message(message.chat.id, "Спасибо за желание поддержать мой проект!\n"
-                                      "Ваша поддержка поможет поддерживать в работе сервер.\n\n"
-                                      "Вы можете перевести средства на карту:\n"
-                                      "2200 7001 5676 6098\n\n"
-                                      "Спасибо за вашу помощь и поддержку!")
+    bot.send_message(
+        message.chat.id,
+        Donation.MESSAGE,
+        parse_mode="HTML"
+    )
 
 
 def _parse_the_command(message) -> list:
