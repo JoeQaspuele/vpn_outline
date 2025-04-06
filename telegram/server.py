@@ -16,6 +16,7 @@ import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
+import telegram.admin as admin
 import db
 from db import is_vip
 
@@ -28,7 +29,6 @@ DEFAULT_DATA_LIMIT_GB = 10  # Установленный лимит траффи
 PREMIUM_DATA_LIMIT_GB = 50 # лимит для PREMIUM пользователей 
 
 # --- ACCESS CONTROL DECORATOR ---
-
 
 def authorize(func):
     def wrapper(message):
@@ -56,21 +56,14 @@ def send_status(message):
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
-    bot.send_message(
-        message.chat.id,
-        Messages.WELCOME,
-        reply_markup=main_menu())
+    bot.send_message(message.chat.id, Messages.WELCOME, reply_markup=main_menu())
     
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
     global waiting_for_support
     waiting_for_support = True
-    bot.send_message(
-        message.chat.id,
-        Messages.HELP_PROMPT,
-        reply_markup=support_cancel_markup()
-    )
+    bot.send_message(message.chat.id, Messages.HELP_PROMPT, reply_markup=support_cancel_markup())
 
 @bot.message_handler(commands=['setvip'])
 def make_user_vip(message):
@@ -105,7 +98,11 @@ def answer(message):
             send_to_support(message)
         return
 
-    # Обработка основных команд
+     # Обработка команд для пользователей и администраторов
+    if is_admin:
+        admin.handle_admin_commands(message)  # Обрабатываем команды администратора
+        
+    # Обработка основных команд пользователя
     command_handlers = {
         Buttons.GET_KEY: lambda msg: _make_new_key(msg, DEFAULT_SERVER_ID, _form_key_name(msg)),
         Buttons.MY_KEY: lambda msg: _send_existing_key(msg),
@@ -116,15 +113,7 @@ def answer(message):
         Buttons.BUY_PREMIUM: lambda msg: send_payment_info(msg),
         Buttons.BACK: lambda msg: bot.send_message(msg.chat.id, "⬅️ Вы вернулись в главное меню.", reply_markup=main_menu(is_admin)),
     }
-
-    if is_admin:  # Для админов
-        command_handlers.update({
-            Buttons.ADMIN: lambda msg: bot.send_message(msg.chat.id, "🔐 Админ-панель", reply_markup=admin_menu()),
-            Buttons.ADMIN_SET_VIP: lambda msg: bot.send_message(msg.chat.id, "Введите ID пользователя для назначения VIP:"),
-            Buttons.ADMIN_LIST_VIPS: lambda msg: _list_vip_users(msg),
-            Buttons.BACK: lambda msg: bot.send_message(msg.chat.id, "🔙 Возврат в главное меню", reply_markup=main_menu(is_admin=True))
-        })
-    # Проверка команд
+    # Проверка команд пользователя
     if text in command_handlers:
         command_handlers[text](message)
     else:
