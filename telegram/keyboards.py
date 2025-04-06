@@ -18,3 +18,4 @@ def support_cancel_markup() -> types.ReplyKeyboardMarkup:
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton(Buttons.CANCEL))
     return markup
+
