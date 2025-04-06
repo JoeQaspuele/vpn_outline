@@ -76,7 +76,7 @@ def remove_key(user_id: int):
         conn.commit()
 
 def set_vip(user_id: int):
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
         c.execute("UPDATE users SET is_vip = 1 WHERE user_id = ?", (user_id,))
@@ -84,7 +84,7 @@ def set_vip(user_id: int):
 
 
 def is_vip(user_id: int) -> bool:
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute("SELECT is_vip FROM users WHERE user_id = ?", (user_id,))
         result = c.fetchone()
