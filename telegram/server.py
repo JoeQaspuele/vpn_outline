@@ -56,7 +56,7 @@ def send_welcome(message):
     bot.send_message(
         message.chat.id,
         Messages.WELCOME,
-        reply_markup=main_menu())
+        reply_markup=main_menu(message.from_user.id))
     @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
@@ -89,11 +89,15 @@ def answer(message):
             bot.send_message(
                 message.chat.id,
                 Messages.REQUEST_CANCELED,
-                reply_markup=main_menu()  # Возвращаем главное меню
+                reply_markup=main_menu(message.from_user.id)  # Возвращаем главное меню
             )
         else:
             # Эта функция теперь сама сбрасывает режим поддержки
             send_to_support(message)
+        return
+
+    if is_admin(message.from_user.id) and text in admin_commands:
+        admin_commands[text](message)
         return
 
     # Обработка основных команд
@@ -124,7 +128,7 @@ def answer(message):
         bot.send_message(
             message.chat.id,
             Errors.UNKNOWN_COMMAND,
-            reply_markup=main_menu()
+            reply_markup=main_menu(message.from_user.id)
         )
 
 
@@ -302,14 +306,14 @@ def send_to_support(message):
         bot.send_message(
             message.chat.id,
             Messages.SUCCESS_SENT,
-            reply_markup=main_menu()
+            reply_markup=main_menu(message.from_user.id)
         )
     except Exception as e:
         waiting_for_support = False
         bot.send_message(
             message.chat.id,
             Errors.DEFAULT,
-            reply_markup=main_menu()
+            reply_markup=main_menu(message.from_user.id)
         )
         monitoring.send_error(str(e), message.from_user.username)
 
