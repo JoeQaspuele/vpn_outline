@@ -51,4 +51,3 @@ def _read_outline_servers_from_settings() -> dict[str, OutlineServer]:
 servers = _read_outline_servers_from_settings()
 
 ADMIN_IDS = [245413138]
-VIP_DATA_LIMIT_GB = 100
