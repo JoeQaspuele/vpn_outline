@@ -90,3 +90,10 @@ def is_vip(user_id: int) -> bool:
         result = c.fetchone()
         return result is not None and result[0] == 1
 
+def get_all_vips():
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id FROM users WHERE is_vip = 1")
+        return [row[0] for row in c.fetchall()]
+
+
