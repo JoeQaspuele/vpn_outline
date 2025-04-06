@@ -7,6 +7,7 @@ class Buttons:
     CANCEL = "❌ Отменить запрос"
     PREMIUM = "💎 Premium"
 
+    ADMIN = "🛠️"  # Кнопка для администратора
     BUY_PREMIUM = "💳 Купить Premium"  
     BACK = "⬅️ Назад"                 
 
