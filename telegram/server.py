@@ -56,7 +56,7 @@ def send_welcome(message):
     bot.send_message(
         message.chat.id,
         Messages.WELCOME,
-        reply_markup=main_menu(message.from_user.id))
+        reply_markup=main_menu())
     @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
@@ -89,15 +89,11 @@ def answer(message):
             bot.send_message(
                 message.chat.id,
                 Messages.REQUEST_CANCELED,
-                reply_markup=main_menu(message.from_user.id)  # Возвращаем главное меню
+                reply_markup=main_menu()  # Возвращаем главное меню
             )
         else:
             # Эта функция теперь сама сбрасывает режим поддержки
             send_to_support(message)
-        return
-
-    if is_admin(message.from_user.id) and text in admin_commands:
-        admin_commands[text](message)
         return
 
     # Обработка основных команд
@@ -118,7 +114,7 @@ def answer(message):
         ),
         Buttons.DONATE: lambda msg: send_support_message(msg)
     }
-# Обработка команды /newkey
+    # Обработка команды /newkey
     if text.startswith("/newkey"):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
@@ -128,7 +124,7 @@ def answer(message):
         bot.send_message(
             message.chat.id,
             Errors.UNKNOWN_COMMAND,
-            reply_markup=main_menu(message.from_user.id)
+            reply_markup=main_menu()
         )
 
 
@@ -163,8 +159,7 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
     """
     user_id = message.chat.id
     old_key_id = db.get_user_key(user_id)
-
-    # Обработка случая, когда у пользователя уже есть ключ
+ # Обработка случая, когда у пользователя уже есть ключ
     if old_key_id:
         # Если ключ был помечен как удаленный
         if db.is_key_deleted(old_key_id):
@@ -179,7 +174,7 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                     data_limit_gb=DEFAULT_DATA_LIMIT_GB
                 )
 
-              # Шаг 3: Сохраняем новый ключ
+                # Шаг 3: Сохраняем новый ключ
                 db.save_user_key(user_id, key.kid)
 
                 # Шаг 4: Отправляем ключ пользователю
@@ -230,11 +225,12 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
             _send_key(message, key, server_id)
 
         except KeyCreationError:
-            _send_error_message(message, Errors.API_CREATION_FAILED)
+             _send_error_message(message, Errors.API_CREATION_FAILED)
         except KeyRenamingError:
             _send_error_message(message, Errors.API_RENAMING_FAILED)
         except InvalidServerIdError:
             bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
+
 
 def _send_existing_key(message):
     user_id = message.chat.id
@@ -306,14 +302,14 @@ def send_to_support(message):
         bot.send_message(
             message.chat.id,
             Messages.SUCCESS_SENT,
-            reply_markup=main_menu(message.from_user.id)
+            reply_markup=main_menu()
         )
     except Exception as e:
         waiting_for_support = False
         bot.send_message(
             message.chat.id,
             Errors.DEFAULT,
-            reply_markup=main_menu(message.from_user.id)
+            reply_markup=main_menu()
         )
         monitoring.send_error(str(e), message.from_user.username)
 
@@ -324,6 +320,8 @@ def send_support_message(message):
         Donation.MESSAGE,
         parse_mode="HTML"
     )
+
+
 def _parse_the_command(message) -> list:
     parts = message.text.strip().split()
     server_id = parts[1] if len(parts) > 1 else DEFAULT_SERVER_ID
@@ -340,7 +338,6 @@ def _parse_the_command(message) -> list:
 def _form_key_name(message) -> str:
     username = message.from_user.username or "no_username"
     return f"{message.chat.id}_{username}"
-
 
 def start_telegram_server():
     db.init_db()
