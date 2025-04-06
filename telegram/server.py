@@ -57,7 +57,8 @@ def send_welcome(message):
         message.chat.id,
         Messages.WELCOME,
         reply_markup=main_menu())
-    @bot.message_handler(commands=['help'])
+    
+@bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
     global waiting_for_support
@@ -68,12 +69,10 @@ def send_help(message):
         reply_markup=support_cancel_markup()
     )
 
-
 @bot.message_handler(commands=['servers'])
 @authorize
 def send_servers_list(message):
     bot.send_message(message.chat.id, f.make_servers_list())
-
 
 @bot.message_handler(content_types=['text'])
 @authorize
