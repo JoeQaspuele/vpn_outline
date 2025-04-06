@@ -18,13 +18,3 @@ def support_cancel_markup() -> types.ReplyKeyboardMarkup:
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton(Buttons.CANCEL))
     return markup
-
-def admin_menu() -> types.ReplyKeyboardMarkup:
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(
-        types.KeyboardButton(Buttons.MAKE_VIP),
-        types.KeyboardButton(Buttons.INCREASE_LIMIT),
-        types.KeyboardButton(Buttons.REVOKE_KEY),
-        types.KeyboardButton(Buttons.BACK_TO_MAIN)
-    )
-    return markup
