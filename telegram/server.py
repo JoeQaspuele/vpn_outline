@@ -16,13 +16,15 @@ from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServer
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
 import db
+from db import is_vip
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 
 waiting_for_support = False
 # Константа для лимита трафика (50 ГБ)
-DEFAULT_DATA_LIMIT_GB = 50  # Установленный лимит траффика
+DEFAULT_DATA_LIMIT_GB = 10  # Установленный лимит траффика
+PREMIUM_DATA_LIMIT_GB = 50 # лимит для PREMIUM пользователей 
 
 # --- ACCESS CONTROL DECORATOR ---
 
@@ -68,6 +70,13 @@ def send_help(message):
         Messages.HELP_PROMPT,
         reply_markup=support_cancel_markup()
     )
+
+@bot.message_handler(commands=['setvip'])
+def make_user_vip(message):
+    user_id = message.from_user.id
+    set_vip(user_id)
+    bot.send_message(user_id, "✅ Вы стали VIP-пользователем! Вам доступно больше трафика.")
+
 
 @bot.message_handler(commands=['servers'])
 @authorize
@@ -165,26 +174,25 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
         key_name: Имя для нового ключа
     """
     user_id = message.chat.id
+
+    # Устанавливаем лимит трафика в зависимости от VIP статуса
+    if db.is_vip(user_id):
+        data_limit_gb = PREMIUM_DATA_LIMIT_GB
+    else:
+        data_limit_gb = DEFAULT_DATA_LIMIT_GB
+
     old_key_id = db.get_user_key(user_id)
- # Обработка случая, когда у пользователя уже есть ключ
+
     if old_key_id:
-        # Если ключ был помечен как удаленный
         if db.is_key_deleted(old_key_id):
             try:
-                # Шаг 1: Очищаем старые данные
                 db.remove_user_key(user_id)
-
-                # Шаг 2: Создаем новый ключ с лимитом трафика
                 key = outline.get_new_key(
                     key_name=key_name,
                     server_id=server_id,
-                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
+                    data_limit_gb=data_limit_gb
                 )
-
-                # Шаг 3: Сохраняем новый ключ
                 db.save_user_key(user_id, key.kid)
-
-                # Шаг 4: Отправляем ключ пользователю
                 _send_key(message, key, server_id)
 
             except KeyCreationError:
@@ -193,11 +201,8 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 _send_error_message(message, Errors.API_RENAMING_FAILED)
             except InvalidServerIdError:
                 bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
-
-        # Если ключ активен
         else:
             try:
-                # Пытаемся получить существующий ключ
                 key = outline.get_key_by_id(old_key_id, server_id)
                 bot.send_message(
                     message.chat.id,
@@ -205,11 +210,10 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                     parse_mode="HTML"
                 )
             except KeyError:
-                # Если ключ не найден (например, удален вручную в Outline)
                 key = outline.get_new_key(
                     key_name=key_name,
                     server_id=server_id,
-                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
+                    data_limit_gb=data_limit_gb
                 )
                 db.save_user_key(user_id, key.kid)
                 _send_key(message, key, server_id)
@@ -218,6 +222,23 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 monitoring.send_error(
                     f"Key error: {str(e)}",
                     message.from_user.username)
+    else:
+        try:
+            key = outline.get_new_key(
+                key_name=key_name,
+                server_id=server_id,
+                data_limit_gb=data_limit_gb
+            )
+            db.save_user_key(user_id, key.kid)
+            _send_key(message, key, server_id)
+
+        except KeyCreationError:
+            _send_error_message(message, Errors.API_CREATION_FAILED)
+        except KeyRenamingError:
+            _send_error_message(message, Errors.API_RENAMING_FAILED)
+        except InvalidServerIdError:
+            bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
+
 
     # Если у пользователя нет ключа
     else:
