@@ -240,26 +240,6 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
             bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
 
 
-    # Если у пользователя нет ключа
-    else:
-        try:
-            # Создаем полностью новый ключ
-            key = outline.get_new_key(
-                key_name=key_name,
-                server_id=server_id,
-                data_limit_gb=DEFAULT_DATA_LIMIT_GB
-            )
-            db.save_user_key(user_id, key.kid)
-            _send_key(message, key, server_id)
-
-        except KeyCreationError:
-             _send_error_message(message, Errors.API_CREATION_FAILED)
-        except KeyRenamingError:
-            _send_error_message(message, Errors.API_RENAMING_FAILED)
-        except InvalidServerIdError:
-            bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
-
-
 def _send_existing_key(message):
     user_id = message.chat.id
     key_name = db.get_user_key(user_id)
