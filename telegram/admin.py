@@ -5,6 +5,7 @@ from telegram.messages import Buttons
 from telegram.keyboards import admin_menu
 import telegram.monitoring as monitoring
 from telegram.server import bot
+from telegram.keyboards import main_menu
 
 waiting_for_vip = False
 
