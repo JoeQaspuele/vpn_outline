@@ -1,5 +1,6 @@
 from telebot import types
-from telegram.messages import Buttons
+from messages import Buttons
+
 
 def main_menu() -> types.ReplyKeyboardMarkup:
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -13,8 +14,17 @@ def main_menu() -> types.ReplyKeyboardMarkup:
     )
     return markup
 
+
 def support_cancel_markup() -> types.ReplyKeyboardMarkup:
-    """Клавиатура для режима поддержки"""
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton(Buttons.CANCEL))
+    return markup
+
+
+def premium_menu() -> types.ReplyKeyboardMarkup:
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(
+        types.KeyboardButton(Buttons.BUY_PREMIUM),
+        types.KeyboardButton(Buttons.BACK)
+    )
     return markup
