@@ -9,7 +9,7 @@ from settings import (
     ENABLE_WHITELIST
 )
 from telegram.messages import Messages, Errors, Buttons, Donation
-from telegram.keyboards import main_menu, support_cancel_markup
+from telegram.keyboards import main_menu, support_cancel_markup, premium_menu
 import telegram.monitoring as monitoring
 import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
@@ -91,7 +91,6 @@ def answer(message):
                 reply_markup=main_menu()  # Возвращаем главное меню
             )
         else:
-            # Эта функция теперь сама сбрасывает режим поддержки
             send_to_support(message)
         return
 
@@ -108,23 +107,32 @@ def answer(message):
             f.make_download_message(),
             disable_web_page_preview=True
         ),
-        Buttons.SUPPORT: lambda msg: (
-            set_help_mode(msg)  # Новая функция для активации режима помощи
+        Buttons.SUPPORT: lambda msg: set_help_mode(msg),
+        Buttons.DONATE: lambda msg: send_support_message(msg),
+        Buttons.PREMIUM: lambda msg: send_premium_info(msg),  # Новая кнопка
+        Buttons.BUY_PREMIUM: lambda msg: send_payment_info(msg),  # Оплата
+        Buttons.BACK: lambda msg: bot.send_message(  # Назад в главное меню
+            msg.chat.id,
+            "↩️ Вы вернулись в главное меню.",
+            reply_markup=main_menu()
         ),
-        Buttons.DONATE: lambda msg: send_support_message(msg)
     }
+
     # Обработка команды /newkey
     if text.startswith("/newkey"):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
+
     elif text in command_handlers:
         command_handlers[text](message)
+
     else:
         bot.send_message(
             message.chat.id,
             Errors.UNKNOWN_COMMAND,
             reply_markup=main_menu()
         )
+
 
 
 def set_help_mode(message):
@@ -317,6 +325,22 @@ def send_support_message(message):
     bot.send_message(
         message.chat.id,
         Donation.MESSAGE,
+        parse_mode="HTML"
+    )
+
+def send_premium_info(message):
+    bot.send_message(
+        message.chat.id,
+        Messages.PREMIUM_INFO,
+        parse_mode="HTML",
+        reply_markup=premium_menu()
+    )
+
+
+def send_payment_info(message):
+    bot.send_message(
+        message.chat.id,
+        Messages.PAYMENT_INFO,
         parse_mode="HTML"
     )
 
