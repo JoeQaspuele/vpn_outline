@@ -1,5 +1,5 @@
 from telebot import types
-from messages import Buttons
+from telegram.messages import Buttons
 
 
 def main_menu() -> types.ReplyKeyboardMarkup:
