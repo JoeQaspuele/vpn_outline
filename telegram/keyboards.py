@@ -31,7 +31,8 @@ def premium_menu() -> types.ReplyKeyboardMarkup:
 
 def admin_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(Buttons.ADMIN_SET_VIP)
-    markup.row(Buttons.ADMIN_LIST_VIPS)
-    markup.row(Buttons.BACK)
+    markup.row(types.KeyboardButton(Buttons.ADMIN_SET_VIP))  # Убедись, что используешь types.KeyboardButton
+    markup.row(types.KeyboardButton(Buttons.ADMIN_LIST_VIPS))  # Так же для других кнопок
+    markup.row(types.KeyboardButton(Buttons.BACK))
     return markup
+
