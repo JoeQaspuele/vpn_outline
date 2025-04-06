@@ -6,7 +6,8 @@ from settings import (
     BLACKLISTED_CHAT_IDS,
     WHITELISTED_CHAT_IDS,
     ENABLE_BLACKLIST,
-    ENABLE_WHITELIST
+    ENABLE_WHITELIST,
+    ADMIN_IDS
 )
 from telegram.messages import Messages, Errors, Buttons, Donation
 from telegram.keyboards import main_menu, support_cancel_markup, premium_menu
@@ -87,9 +88,10 @@ def send_servers_list(message):
 @authorize
 def answer(message):
     global waiting_for_support
-
     text = message.text.strip()
-
+    user_id = message.chat.id
+    is_admin = user_id in ADMIN_IDS
+    
     # Режим ожидания сообщения для поддержки
     if waiting_for_support:
         if text == Buttons.CANCEL:
@@ -105,27 +107,28 @@ def answer(message):
 
     # Обработка основных команд
     command_handlers = {
-        Buttons.GET_KEY: lambda msg: _make_new_key(
-            msg,
-            DEFAULT_SERVER_ID,
-            _form_key_name(msg)
-        ),
+        Buttons.GET_KEY: lambda msg: _make_new_key(msg, DEFAULT_SERVER_ID, _form_key_name(msg)),
         Buttons.MY_KEY: lambda msg: _send_existing_key(msg),
-        Buttons.DOWNLOAD: lambda msg: bot.send_message(
-            msg.chat.id,
-            f.make_download_message(),
-            disable_web_page_preview=True
-        ),
+        Buttons.DOWNLOAD: lambda msg: bot.send_message(msg.chat.id, f.make_download_message(), disable_web_page_preview=True),
         Buttons.SUPPORT: lambda msg: set_help_mode(msg),
         Buttons.DONATE: lambda msg: send_support_message(msg),
-        Buttons.PREMIUM: lambda msg: send_premium_info(msg),  # Новая кнопка
-        Buttons.BUY_PREMIUM: lambda msg: send_payment_info(msg),  # Оплата
-        Buttons.BACK: lambda msg: bot.send_message(  # Назад в главное меню
-            msg.chat.id,
-            "↩️ Вы вернулись в главное меню.",
-            reply_markup=main_menu()
-        ),
+        Buttons.PREMIUM: lambda msg: send_premium_info(msg),
+        Buttons.BUY_PREMIUM: lambda msg: send_payment_info(msg),
+        Buttons.BACK: lambda msg: bot.send_message(msg.chat.id, "⬅️ Вы вернулись в главное меню.", reply_markup=main_menu(is_admin)),
     }
+
+    if is_admin:  # Для админов
+        command_handlers.update({
+            Buttons.ADMIN: lambda msg: bot.send_message(msg.chat.id, "🔐 Админ-панель", reply_markup=admin_menu()),
+            Buttons.ADMIN_SET_VIP: lambda msg: bot.send_message(msg.chat.id, "Введите ID пользователя для назначения VIP:"),
+            Buttons.ADMIN_LIST_VIPS: lambda msg: _list_vip_users(msg),
+            Buttons.BACK: lambda msg: bot.send_message(msg.chat.id, "🔙 Возврат в главное меню", reply_markup=main_menu(is_admin=True))
+        })
+    # Проверка команд
+    if text in command_handlers:
+        command_handlers[text](message)
+    else:
+        bot.send_message(message.chat.id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu(is_admin))
 
     # Обработка команды /newkey
     if text.startswith("/newkey"):
