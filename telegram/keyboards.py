@@ -29,3 +29,14 @@ def premium_menu() -> types.ReplyKeyboardMarkup:
     )
     return markup
 
+def admin_menu() -> types.ReplyKeyboardMarkup:
+    """Клавиатура администратора"""
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(
+        types.KeyboardButton(Buttons.MAKE_PREMIUM),
+        types.KeyboardButton(Buttons.VIEW_PREMIUMS),
+        types.KeyboardButton(Buttons.BACK)
+    )
+    return markup
+
+
