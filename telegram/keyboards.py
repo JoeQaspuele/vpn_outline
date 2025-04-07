@@ -11,7 +11,8 @@ def main_menu() -> types.ReplyKeyboardMarkup:
         types.KeyboardButton(Buttons.PREMIUM),
         types.KeyboardButton(Buttons.SUPPORT),
         types.KeyboardButton(Buttons.DONATE)
-    )
+    if is_admin:
+        markup.add(types.KeyboardButton(Buttons.ADMIN))
     return markup
 
 def support_cancel_markup() -> types.ReplyKeyboardMarkup:
