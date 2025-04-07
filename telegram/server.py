@@ -8,8 +8,8 @@ from settings import (
     ENABLE_BLACKLIST,
     ENABLE_WHITELIST
 )
-from telegram.messages import Messages, Errors, Buttons, Donation, PremiumMessages
-from telegram.keyboards import main_menu, support_cancel_markup, premium_menu
+from telegram.messages import Messages, Errors, Buttons, Donation, PremiumMessages, AdminMessages
+from telegram.keyboards import main_menu, support_cancel_markup, premium_menu, admin_menu
 import telegram.monitoring as monitoring
 import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
@@ -19,6 +19,8 @@ import db
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
+admin_states = {}  # user_id -> "awaiting_premium_id"
+
 
 waiting_for_support = False
 # Константа для лимита трафика (50 ГБ)
@@ -69,6 +71,30 @@ def send_help(message):
         Messages.HELP_PROMPT,
         reply_markup=support_cancel_markup()
     )
+
+@bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
+def handle_admin_panel(message):
+    if message.from_user.id in ADMIN_IDS:
+        bot.send_message(message.chat.id, "🔐 Админ-панель:", reply_markup=admin_menu())
+
+@bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
+def handle_make_premium(message):
+    if message.from_user.id in ADMIN_IDS:
+        admin_states[message.chat.id] = "awaiting_premium_id"
+        bot.send_message(message.chat.id, AdminMessages.ENTER_USER_ID)
+
+@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
+def process_premium_user_id(message):
+    try:
+        user_id = int(message.text)
+        # Тут будет запись в БД (сделаем позже)
+        # db.set_premium(user_id)
+
+        admin_states.pop(message.chat.id, None)
+        bot.send_message(message.chat.id, AdminMessages.SUCCESS_SET_PREMIUM, reply_markup=admin_menu())
+    except ValueError:
+        bot.send_message(message.chat.id, AdminMessages.INVALID_ID)
+
 
 @bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
 def handle_premium(message):
