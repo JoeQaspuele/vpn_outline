@@ -8,8 +8,8 @@ from settings import (
     ENABLE_BLACKLIST,
     ENABLE_WHITELIST
 )
-from telegram.messages import Messages, Errors, Buttons, Donation
-from telegram.keyboards import main_menu, support_cancel_markup
+from telegram.messages import Messages, Errors, Buttons, Donation, PremiumMessages
+from telegram.keyboards import main_menu, support_cancel_markup, premium_menu
 import telegram.monitoring as monitoring
 import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
@@ -68,6 +68,34 @@ def send_help(message):
         message.chat.id,
         Messages.HELP_PROMPT,
         reply_markup=support_cancel_markup()
+    )
+
+@bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
+def handle_premium(message):
+    bot.send_message(
+        message.chat.id,
+        PremiumMessages.DESCRIPTION,
+        reply_markup=premium_menu(),
+        parse_mode="HTML"
+    )
+
+@bot.message_handler(func=lambda message: message.text == Buttons.BACK)
+def handle_back_to_main(message):
+    from telegram.messages import Messages  # если у тебя есть текст приветствия
+    bot.send_message(
+        message.chat.id,
+        Messages.START,
+        reply_markup=main_menu(),
+        parse_mode="HTML"
+    )
+
+@bot.message_handler(func=lambda message: message.text == Buttons.BUY_PREMIUM)
+def handle_buy_premium(message):
+    bot.send_message(
+        message.chat.id,
+        PremiumMessages.PAYMENT_INFO,
+        reply_markup=premium_menu(),
+        parse_mode="HTML"
     )
 
 
