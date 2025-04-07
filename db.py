@@ -74,3 +74,10 @@ def remove_key(user_id: int):
         cursor = conn.cursor()
         cursor.execute('DELETE FROM user_keys WHERE user_id = ?', (user_id,))
         conn.commit()
+
+def set_premium(user_id: int):
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET isPremium = 1 WHERE user_id = ?', (user_id,))
+        conn.commit()
+
