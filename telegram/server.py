@@ -84,7 +84,7 @@ def handle_back_to_main(message):
     from telegram.messages import Messages  # если у тебя есть текст приветствия
     bot.send_message(
         message.chat.id,
-        Messages.START,
+        Messages.REQUEST_CANCELED,
         reply_markup=main_menu(),
         parse_mode="HTML"
     )
