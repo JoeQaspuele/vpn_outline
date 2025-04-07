@@ -111,9 +111,21 @@ def _rename_key(key_id: KeyId, key_name: str | None, server_id: ServerId) -> Non
 def _set_access_key_data_limit(key_id: KeyId, limit_in_bytes: int, server_id: ServerId) -> None:
     limit_url = servers[server_id].api_url + f'/access-keys/{key_id}/data-limit'
     headers = {"Content-Type": "application/json"}
-    data = {"limitInBytes": limit_in_bytes}
-    r = requests.put(limit_url, headers=headers, json=data, verify=False)
-    r.raise_for_status()
+    data = {"limit": {"bytes": limit_in_bytes}}  # Важно: именно такой формат!
+    
+    # Добавляем логирование перед запросом
+    print(f"[DEBUG] Устанавливаю лимит для ключа {key_id}: {data}")
+    
+    try:
+        r = requests.put(limit_url, headers=headers, json=data, verify=False)
+        
+        # Логируем ответ API
+        print(f"[DEBUG] Ответ API. Статус: {r.status_code}, Текст: {r.text}")
+        
+        r.raise_for_status()
+    except Exception as e:
+        print(f"[ERROR] Ошибка при установке лимита: {str(e)}")
+        raise  # Пробрасываем исключение дальше
 
 if __name__ == "__main__":
     print(check_api_status())
