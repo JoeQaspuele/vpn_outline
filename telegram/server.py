@@ -58,7 +58,8 @@ def send_welcome(message):
     bot.send_message(
         message.chat.id,
         Messages.WELCOME,
-        reply_markup=main_menu())
+        reply_markup=main_menu(is_admin),
+        parse_mode="HTML")
 
 
 @bot.message_handler(commands=['help'])
