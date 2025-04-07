@@ -1,4 +1,4 @@
-import telebot
+а import telebot
 from telebot import types
 from settings import (
     BOT_API_TOKEN,
@@ -6,29 +6,26 @@ from settings import (
     BLACKLISTED_CHAT_IDS,
     WHITELISTED_CHAT_IDS,
     ENABLE_BLACKLIST,
-    ENABLE_WHITELIST,
-    ADMIN_IDS
+    ENABLE_WHITELIST
 )
 from telegram.messages import Messages, Errors, Buttons, Donation
-from telegram.keyboards import main_menu, support_cancel_markup, premium_menu
+from telegram.keyboards import main_menu, support_cancel_markup
 import telegram.monitoring as monitoring
 import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
-import telegram.admin as admin
 import db
-from db import is_vip
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 
 waiting_for_support = False
 # Константа для лимита трафика (50 ГБ)
-DEFAULT_DATA_LIMIT_GB = 10  # Установленный лимит траффика
-PREMIUM_DATA_LIMIT_GB = 50 # лимит для PREMIUM пользователей 
+DEFAULT_DATA_LIMIT_GB = 50  # Установленный лимит траффика
 
 # --- ACCESS CONTROL DECORATOR ---
+
 
 def authorize(func):
     def wrapper(message):
@@ -56,20 +53,22 @@ def send_status(message):
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
-    bot.send_message(message.chat.id, Messages.WELCOME, reply_markup=main_menu())
-    
+    bot.send_message(
+        message.chat.id,
+        Messages.WELCOME,
+        reply_markup=main_menu())
+
+
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
     global waiting_for_support
     waiting_for_support = True
-    bot.send_message(message.chat.id, Messages.HELP_PROMPT, reply_markup=support_cancel_markup())
-
-@bot.message_handler(commands=['setvip'])
-def make_user_vip(message):
-    user_id = message.from_user.id
-    set_vip(user_id)
-    bot.send_message(user_id, "✅ Вы стали VIP-пользователем! Вам доступно больше трафика.")
+    bot.send_message(
+        message.chat.id,
+        Messages.HELP_PROMPT,
+        reply_markup=support_cancel_markup()
+    )
 
 
 @bot.message_handler(commands=['servers'])
@@ -77,14 +76,14 @@ def make_user_vip(message):
 def send_servers_list(message):
     bot.send_message(message.chat.id, f.make_servers_list())
 
+
 @bot.message_handler(content_types=['text'])
 @authorize
 def answer(message):
     global waiting_for_support
+
     text = message.text.strip()
-    user_id = message.chat.id
-    is_admin = user_id in ADMIN_IDS
-    
+
     # Режим ожидания сообщения для поддержки
     if waiting_for_support:
         if text == Buttons.CANCEL:
@@ -95,45 +94,41 @@ def answer(message):
                 reply_markup=main_menu()  # Возвращаем главное меню
             )
         else:
+            # Эта функция теперь сама сбрасывает режим поддержки
             send_to_support(message)
         return
 
-     # Обработка команд для пользователей и администраторов
-    if is_admin:
-        admin.handle_admin_commands(message)  # Обрабатываем команды администратора
-        
-    # Обработка основных команд пользователя
+    # Обработка основных команд
     command_handlers = {
-        Buttons.GET_KEY: lambda msg: _make_new_key(msg, DEFAULT_SERVER_ID, _form_key_name(msg)),
+        Buttons.GET_KEY: lambda msg: _make_new_key(
+            msg,
+            DEFAULT_SERVER_ID,
+            _form_key_name(msg)
+        ),
         Buttons.MY_KEY: lambda msg: _send_existing_key(msg),
-        Buttons.DOWNLOAD: lambda msg: bot.send_message(msg.chat.id, f.make_download_message(), disable_web_page_preview=True),
-        Buttons.SUPPORT: lambda msg: set_help_mode(msg),
-        Buttons.DONATE: lambda msg: send_support_message(msg),
-        Buttons.PREMIUM: lambda msg: send_premium_info(msg),
-        Buttons.BUY_PREMIUM: lambda msg: send_payment_info(msg),
-        Buttons.BACK: lambda msg: bot.send_message(msg.chat.id, "⬅️ Вы вернулись в главное меню.", reply_markup=main_menu(is_admin)),
+        Buttons.DOWNLOAD: lambda msg: bot.send_message(
+            msg.chat.id,
+            f.make_download_message(),
+            disable_web_page_preview=True
+        ),
+        Buttons.SUPPORT: lambda msg: (
+            set_help_mode(msg)  # Новая функция для активации режима помощи
+        ),
+        Buttons.DONATE: lambda msg: send_support_message(msg)
     }
-    # Проверка команд пользователя
-    if text in command_handlers:
-        command_handlers[text](message)
-    else:
-        bot.send_message(message.chat.id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu(is_admin))
 
     # Обработка команды /newkey
     if text.startswith("/newkey"):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
-
     elif text in command_handlers:
         command_handlers[text](message)
-
     else:
         bot.send_message(
             message.chat.id,
             Errors.UNKNOWN_COMMAND,
             reply_markup=main_menu()
         )
-
 
 
 def set_help_mode(message):
@@ -166,25 +161,27 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
         key_name: Имя для нового ключа
     """
     user_id = message.chat.id
-
-    # Устанавливаем лимит трафика в зависимости от VIP статуса
-    if db.is_vip(user_id):
-        data_limit_gb = PREMIUM_DATA_LIMIT_GB
-    else:
-        data_limit_gb = DEFAULT_DATA_LIMIT_GB
-
     old_key_id = db.get_user_key(user_id)
 
+    # Обработка случая, когда у пользователя уже есть ключ
     if old_key_id:
+        # Если ключ был помечен как удаленный
         if db.is_key_deleted(old_key_id):
             try:
+                # Шаг 1: Очищаем старые данные
                 db.remove_user_key(user_id)
+
+                # Шаг 2: Создаем новый ключ с лимитом трафика
                 key = outline.get_new_key(
                     key_name=key_name,
                     server_id=server_id,
-                    data_limit_gb=data_limit_gb
+                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
                 )
+
+                # Шаг 3: Сохраняем новый ключ
                 db.save_user_key(user_id, key.kid)
+
+                # Шаг 4: Отправляем ключ пользователю
                 _send_key(message, key, server_id)
 
             except KeyCreationError:
@@ -193,8 +190,11 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 _send_error_message(message, Errors.API_RENAMING_FAILED)
             except InvalidServerIdError:
                 bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
+
+        # Если ключ активен
         else:
             try:
+                # Пытаемся получить существующий ключ
                 key = outline.get_key_by_id(old_key_id, server_id)
                 bot.send_message(
                     message.chat.id,
@@ -202,10 +202,11 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                     parse_mode="HTML"
                 )
             except KeyError:
+                # Если ключ не найден (например, удален вручную в Outline)
                 key = outline.get_new_key(
                     key_name=key_name,
                     server_id=server_id,
-                    data_limit_gb=data_limit_gb
+                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
                 )
                 db.save_user_key(user_id, key.kid)
                 _send_key(message, key, server_id)
@@ -214,12 +215,15 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 monitoring.send_error(
                     f"Key error: {str(e)}",
                     message.from_user.username)
+
+    # Если у пользователя нет ключа
     else:
         try:
+            # Создаем полностью новый ключ
             key = outline.get_new_key(
                 key_name=key_name,
                 server_id=server_id,
-                data_limit_gb=data_limit_gb
+                data_limit_gb=DEFAULT_DATA_LIMIT_GB
             )
             db.save_user_key(user_id, key.kid)
             _send_key(message, key, server_id)
@@ -274,6 +278,8 @@ def _send_error_message(message, error_message):
         message.from_user.first_name,
         message.from_user.last_name
     )
+
+
 def send_to_support(message):
     global waiting_for_support
 
@@ -321,22 +327,6 @@ def send_support_message(message):
         parse_mode="HTML"
     )
 
-def send_premium_info(message):
-    bot.send_message(
-        message.chat.id,
-        Messages.PREMIUM_INFO,
-        parse_mode="HTML",
-        reply_markup=premium_menu()
-    )
-
-
-def send_payment_info(message):
-    bot.send_message(
-        message.chat.id,
-        Messages.PAYMENT_INFO,
-        parse_mode="HTML"
-    )
-
 
 def _parse_the_command(message) -> list:
     parts = message.text.strip().split()
@@ -354,6 +344,7 @@ def _parse_the_command(message) -> list:
 def _form_key_name(message) -> str:
     username = message.from_user.username or "no_username"
     return f"{message.chat.id}_{username}"
+
 
 def start_telegram_server():
     db.init_db()
