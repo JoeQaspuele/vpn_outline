@@ -6,7 +6,8 @@ from settings import (
     BLACKLISTED_CHAT_IDS,
     WHITELISTED_CHAT_IDS,
     ENABLE_BLACKLIST,
-    ENABLE_WHITELIST
+    ENABLE_WHITELIST,
+    ADMIN_IDS
 )
 from telegram.messages import Messages, Errors, Buttons, Donation, PremiumMessages, AdminMessages
 from telegram.keyboards import main_menu, support_cancel_markup, premium_menu, admin_menu
@@ -55,6 +56,8 @@ def send_status(message):
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS 
     bot.send_message(
         message.chat.id,
         Messages.WELCOME,
