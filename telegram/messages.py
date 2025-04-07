@@ -15,7 +15,7 @@ class Messages:
     WELCOME = "Привет! Этот бот позволяет получить VPN без ограничения по скорости. Верни доступ к YouTube, Instagram, Twitter, TikTok."
     HELP_PROMPT = "✍️ Опишите свою проблему.\nСреднее время ответа — 10-60 минут."
     SUCCESS_SENT = "✅ Ваше сообщение отправлено в поддержку!"
-    REQUEST_CANCELED = "Запрос в поддержку отменён."
+    REQUEST_CANCELED = "Вы вернулись в главное меню"
     
     @staticmethod
     def key_info(access_url: str, is_new: bool = True) -> str:
