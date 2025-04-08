@@ -21,6 +21,8 @@ import db
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 admin_states = {}  # user_id -> "awaiting_premium_id"
+user_states = {}  # user_id: str
+
 
 
 waiting_for_support = False
@@ -70,19 +72,26 @@ def send_welcome(message):
 def send_help(message):
     global waiting_for_support
     waiting_for_support = True
+
+    is_admin = message.from_user.id in ADMIN_IDS
+    user_states[message.chat.id] = "support_mode"
+
     bot.send_message(
         message.chat.id,
         Messages.HELP_PROMPT,
-        reply_markup=cancel_or_back_markup(for_admin=False)
+        reply_markup=cancel_or_back_markup(for_admin=is_admin)
     )
+
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
     if message.from_user.id in ADMIN_IDS:
         bot.send_message(message.chat.id, "🔐 Админ-панель:", reply_markup=admin_menu())
 
+# PREMIUM Кнопка
 @bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
 def handle_premium(message):
+    user_states[message.chat.id] = "premium_menu"
     bot.send_message(
         message.chat.id,
         PremiumMessages.DESCRIPTION,
@@ -142,10 +151,28 @@ def handle_view_premiums(message):
 @bot.message_handler(func=lambda message: message.text == Buttons.BACK)
 def handle_back(message):
     user_id = message.chat.id
-    if user_id in ADMIN_IDS:
+    state = user_states.get(user_id)
+
+    if state == "premium_menu":
+        user_states.pop(user_id, None)
         bot.send_message(
             user_id,
-            "🔙 Возврат в админ-панель.",
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(user_id in ADMIN_IDS)
+        )
+
+    elif state == "support_mode":
+        user_states.pop(user_id, None)
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(user_id in ADMIN_IDS)
+        )
+
+    elif user_id in ADMIN_IDS:
+        bot.send_message(
+            user_id,
+            AdminMessages.ADMIN_MENU,
             reply_markup=admin_menu()
         )
     else:
@@ -154,6 +181,7 @@ def handle_back(message):
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu()
         )
+
 
 # КНОПКА КУПИТЬ ПРЕМИУМ
 @bot.message_handler(func=lambda message: message.text == Buttons.BUY_PREMIUM)
