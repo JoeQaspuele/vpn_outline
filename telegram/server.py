@@ -123,7 +123,7 @@ def process_premium_user_id(message):
 
     try:
         user_id = int(message.text)
-        # db.set_premium(user_id)  # когда будешь готов
+        db.set_premium(user_id)  # когда будешь готов
         admin_states.pop(message.chat.id, None)
         bot.send_message(
             message.chat.id,
