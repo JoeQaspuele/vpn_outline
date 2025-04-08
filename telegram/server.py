@@ -24,6 +24,7 @@ admin_states = {}  # user_id -> "awaiting_premium_id"
 user_states = {}  # user_id: str
 # Константа для лимита трафика (15 ГБ)
 DEFAULT_DATA_LIMIT_GB = 15  # Установленный лимит траффика
+PREMIUM_DATA_LIMIT_GB = 50 
 
 # --- ACCESS CONTROL DECORATOR ---
 
@@ -124,6 +125,16 @@ def process_premium_user_id(message):
     try:
         user_id = int(message.text)
         db.set_premium(user_id)  # когда будешь готов
+        
+        key = db.get_user_key(user_id)
+        if key_id:
+            limit_in_bytes = PREMIUM_DATA_LIMIT_GB * 1024**3
+            outline._set_access_key_data_limit(
+                key_id=key_id,
+                limit_in_bytes=limit_in_bytes,
+                server_id=ServerId
+            )
+        
         admin_states.pop(message.chat.id, None)
         bot.send_message(
             message.chat.id,
@@ -209,10 +220,10 @@ def handle_buy_premium(message):
             parse_mode="HTML"
         )
 
-@bot.message_handler(commands=['servers'])
+@bot.message_handler(commands=['s'])
 @authorize
-def send_servers_list(message):
-    bot.send_message(message.chat.id, f.make_servers_list())
+def send_s_list(message):
+    bot.send_message(message.chat.id, f.make_s_list())
 
 @bot.message_handler(content_types=['text'])
 @authorize
