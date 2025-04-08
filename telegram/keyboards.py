@@ -15,6 +15,14 @@ def main_menu() -> types.ReplyKeyboardMarkup:
         markup.add(types.KeyboardButton(Buttons.ADMIN))
     return markup
 
+def cancel_or_back_markup(for_admin=False) -> types.ReplyKeyboardMarkup:
+    """Клавиатура с кнопкой 'Назад' для админа или 'Отменить' для пользователя"""
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    button = Buttons.BACK if for_admin else Buttons.CANCEL
+    markup.add(types.KeyboardButton(button))
+    return markup
+
+
 def support_cancel_markup() -> types.ReplyKeyboardMarkup:
     """Клавиатура для режима поддержки"""
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
