@@ -254,7 +254,7 @@ def answer(message):
         handle_premium(message)
         return
 
-    if text == Buttons.ADMIN_PANEL:
+    if text == Buttons.ADMIN:
         handle_admin_panel(message)
         return
 
