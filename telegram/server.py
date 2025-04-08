@@ -81,33 +81,54 @@ def handle_admin_panel(message):
     if message.from_user.id in ADMIN_IDS:
         bot.send_message(message.chat.id, "🔐 Админ-панель:", reply_markup=admin_menu())
 
+# Обработка кнопки "Сделать PREMIUM"
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
 def handle_make_premium(message):
-    if message.from_user.id in ADMIN_IDS:
-        admin_states[message.chat.id] = "awaiting_premium_id"
-        bot.send_message(message.chat.id, AdminMessages.ENTER_USER_ID)
-
-@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
-def process_premium_user_id(message):
-    try:
-        user_id = int(message.text)
-        # Тут будет запись в БД (сделаем позже)
-        # db.set_premium(user_id)
-
-        admin_states.pop(message.chat.id, None)
-        bot.send_message(message.chat.id, AdminMessages.SUCCESS_SET_PREMIUM, reply_markup=admin_menu())
-    except ValueError:
-        bot.send_message(message.chat.id, AdminMessages.INVALID_ID)
-
-
-@bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
-def handle_premium(message):
+    admin_states[message.chat.id] = "awaiting_premium_id"
     bot.send_message(
         message.chat.id,
-        PremiumMessages.DESCRIPTION,
-        reply_markup=premium_menu(),
-        parse_mode="HTML"
+        AdminMessages.ENTER_USER_ID,
+        reply_markup=support_cancel_markup()
     )
+
+# Обработка ID пользователя для PREMIUM
+@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
+def process_premium_user_id(message):
+    if message.text == Buttons.CANCEL:
+        admin_states.pop(message.chat.id, None)
+        bot.send_message(
+            message.chat.id,
+            "❌ Действие отменено.",
+            reply_markup=admin_menu()
+        )
+        return
+
+    try:
+        user_id = int(message.text)
+        # db.set_premium(user_id)  # когда будешь готов
+        admin_states.pop(message.chat.id, None)
+        bot.send_message(
+            message.chat.id,
+            AdminMessages.SUCCESS_SET_PREMIUM,
+            reply_markup=admin_menu()
+        )
+    except ValueError:
+        bot.send_message(
+            message.chat.id,
+            AdminMessages.INVALID_ID,
+            reply_markup=support_cancel_markup()
+        )
+
+# Обработка кнопки "Назад" (возврат в админ-меню)
+@bot.message_handler(func=lambda message: message.text == Buttons.BACK)
+def handle_back(message):
+    if message.chat.id in ADMIN_IDS:
+        bot.send_message(
+            message.chat.id,
+            AdminMessages.ADMIN_MENU,
+            reply_markup=admin_menu()
+        )
+
 
 @bot.message_handler(func=lambda message: message.text == Buttons.BACK)
 def handle_back_to_main(message):
