@@ -118,6 +118,14 @@ def process_premium_user_id(message):
             AdminMessages.INVALID_ID,
             reply_markup=support_cancel_markup()
         )
+@bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
+def handle_view_premiums(message):
+    premium_users = db.get_all_premium_users()  # Предполагаемая функция
+    if premium_users:
+        user_list = "\n".join([f"👤 ID: {user['user_id']}" for user in premium_users])
+        bot.send_message(message.chat.id, f"Список PREMIUM-пользователей:\n\n{user_list}", reply_markup=admin_menu())
+    else:
+        bot.send_message(message.chat.id, "❗ Пока нет PREMIUM-пользователей.", reply_markup=admin_menu())
 
 # Обработка кнопки "Назад" (возврат в админ-меню)
 @bot.message_handler(func=lambda message: message.text == Buttons.BACK)
