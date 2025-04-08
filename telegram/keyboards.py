@@ -22,13 +22,6 @@ def cancel_or_back_markup(for_admin=False) -> types.ReplyKeyboardMarkup:
     markup.add(types.KeyboardButton(button))
     return markup
 
-
-def support_cancel_markup() -> types.ReplyKeyboardMarkup:
-    """Клавиатура для режима поддержки"""
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton(Buttons.CANCEL))
-    return markup
-
 def premium_menu() -> types.ReplyKeyboardMarkup:
     """Меню PREMIUM с кнопками"""
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
