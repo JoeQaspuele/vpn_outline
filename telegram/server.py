@@ -81,7 +81,9 @@ def send_help(message):
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
     if message.from_user.id in ADMIN_IDS:
+        user_states[message.chat.id] = "admin_menu"  # <-- Добавляем это
         bot.send_message(message.chat.id, "🔐 Админ-панель:", reply_markup=admin_menu())
+
 
 # PREMIUM Кнопка
 @bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
@@ -164,18 +166,29 @@ def handle_back(message):
             reply_markup=main_menu(user_id in ADMIN_IDS)
         )
 
-    elif user_id in ADMIN_IDS:
+    elif state == "awaiting_premium_id":
+        user_states.pop(user_id, None)
         bot.send_message(
             user_id,
             AdminMessages.ADMIN_MENU,
             reply_markup=admin_menu()
         )
-    else:
+
+    elif state == "admin_menu":
+        user_states.pop(user_id, None)
         bot.send_message(
             user_id,
             Messages.REQUEST_CANCELED,
-            reply_markup=main_menu()
+            reply_markup=main_menu(user_id in ADMIN_IDS)
         )
+
+     else:
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(user_id in ADMIN_IDS)
+        )
+
 
 
 # КНОПКА КУПИТЬ ПРЕМИУМ
@@ -201,46 +214,55 @@ def answer(message):
     text = message.text.strip()
     chat_id = message.chat.id
 
-    # Проверяем, находится ли пользователь в режиме поддержки
+    # === Режим поддержки ===
     if user_states.get(chat_id) == "support":
         if text == Buttons.CANCEL:
             user_states.pop(chat_id, None)
-            bot.send_message(
-                chat_id,
-                Messages.REQUEST_CANCELED,
-                reply_markup=main_menu()
-            )
+            bot.send_message(chat_id, Messages.REQUEST_CANCELED, reply_markup=main_menu())
         else:
-            send_to_support(message)  # эта функция уже сама удалит user_states
+            send_to_support(message)
         return
 
-    # Обработка основных кнопок
+    # === Режим установки премиума ===
+    if user_states.get(chat_id) == "make_premium":
+        if text == Buttons.BACK:
+            user_states.pop(chat_id, None)
+            bot.send_message(chat_id, "Вы вернулись в админ меню.", reply_markup=admin_menu())
+            return
+        try:
+            user_id = int(text)
+            db.set_premium(user_id)
+            user_states.pop(chat_id, None)
+            bot.send_message(chat_id, "✅ Пользователь успешно отмечен как PREMIUM.", reply_markup=admin_menu())
+        except ValueError:
+            bot.send_message(chat_id, "❌ Пожалуйста, введите корректный ID или нажмите Назад.")
+        return
+
+    # === Остальные действия ===
+    if text == Buttons.PREMIUM:
+        handle_premium(message)
+        return
+
+    if text == Buttons.ADMIN_PANEL:
+        handle_admin_panel(message)
+        return
+
     command_handlers = {
-        Buttons.GET_KEY: lambda msg: _make_new_key(
-            msg,
-            DEFAULT_SERVER_ID,
-            _form_key_name(msg)
-        ),
-        Buttons.MY_KEY: lambda msg: _send_existing_key(msg),
-        Buttons.DOWNLOAD: lambda msg: bot.send_message(
-            msg.chat.id,
-            f.make_download_message(),
-            disable_web_page_preview=True
-        ),
-        Buttons.SUPPORT: lambda msg: set_help_mode(msg),
-        Buttons.DONATE: lambda msg: send_support_message(msg)
+        Buttons.GET_KEY: lambda msg: _make_new_key(msg, DEFAULT_SERVER_ID, _form_key_name(msg)),
+        Buttons.MY_KEY: _send_existing_key,
+        Buttons.DOWNLOAD: lambda msg: bot.send_message(msg.chat.id, f.make_download_message(), disable_web_page_preview=True),
+        Buttons.SUPPORT: set_help_mode,
+        Buttons.DONATE: send_support_message,
     }
 
-    # Обработка команды /newkey отдельно
     if text.startswith("/newkey"):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
-        return
-
-    # Проверка на нажатие известных кнопок
-    if text in command_handlers:
+    elif text in command_handlers:
         command_handlers[text](message)
-        return
+    else:
+        bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu())
+
 
     # Если ничего не подошло — неизвестная команда
     bot.send_message(
