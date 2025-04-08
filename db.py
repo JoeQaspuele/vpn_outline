@@ -81,3 +81,14 @@ def set_premium(user_id: int):
         cursor.execute('UPDATE users SET isPremium = 1 WHERE user_id = ?', (user_id,))
         conn.commit()
 
+def get_all_premium_users():
+    conn = sqlite3.connect(DB_PATH)  # Замени на своё имя базы, если другое
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT user_id FROM users WHERE isPremium = 1")
+    rows = cursor.fetchall()
+    
+    conn.close()
+    
+    # Возвращаем список словарей, можно и просто список ID
+    return [{"user_id": row[0]} for row in rows]
