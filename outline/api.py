@@ -13,7 +13,7 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 def get_new_key(key_name: Optional[str], server_id: ServerId, data_limit_gb: int = 50) -> OutlineKey:
     """
-    Создает новый ключ с лимитом трафика (по умолчанию 50 ГБ).
+    Создает новый ключ с лимитом трафика (по умолчанию 15 ГБ).
     
     :param key_name: Имя ключа (если None, будет сгенерировано автоматически)
     :param server_id: ID сервера Outline
