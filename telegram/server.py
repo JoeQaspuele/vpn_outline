@@ -22,8 +22,8 @@ assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 admin_states = {}  # user_id -> "awaiting_premium_id"
 user_states = {}  # user_id: str
-# Константа для лимита трафика (50 ГБ)
-DEFAULT_DATA_LIMIT_GB = 50  # Установленный лимит траффика
+# Константа для лимита трафика (15 ГБ)
+DEFAULT_DATA_LIMIT_GB = 15  # Установленный лимит траффика
 
 # --- ACCESS CONTROL DECORATOR ---
 
@@ -111,10 +111,6 @@ def handle_make_premium(message):
         reply_markup=cancel_or_back_markup(for_admin=True)
     )
 
-# баг №2
-# Обработка ID пользователя для PREMIUM
-
-
 @bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
 def process_premium_user_id(message):
     if message.text == Buttons.BACK:
@@ -177,7 +173,7 @@ def handle_back(message):
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(user_id in ADMIN_IDS)
         )
-    # баг 1
+    
     elif admin_states.get(user_id) == "awaiting_premium_id":
         admin_states.pop(user_id, None)
         bot.send_message(
@@ -218,7 +214,6 @@ def handle_buy_premium(message):
 def send_servers_list(message):
     bot.send_message(message.chat.id, f.make_servers_list())
 
-# корректировка бага 3
 @bot.message_handler(content_types=['text'])
 @authorize
 def answer(message):
@@ -284,7 +279,7 @@ def set_help_mode(message):
     bot.send_message(
         message.chat.id,
         Messages.HELP_PROMPT,
-        reply_markup=cancel_or_back_markup(for_admin=False)  # Только кнопка отмены
+        reply_markup=cancel_or_back_markup(for_admin=False) 
     )
 
 
@@ -396,7 +391,7 @@ def _send_existing_key(message):
             access_url = key.access_url
             bot.send_message(
                 user_id,
-                f"Ваш ключ:\n<code>{access_url}</code>\n\nСкопируйте и вставьте его в Outline.")
+                f"Ваш ключ:\n\n<code>{access_url}</code>\n\nСкопируйте и вставьте его в приложение Outline. \n На бесплатном тарифе у вас 15Гб без ограничесний по скорости")
         else:
             bot.send_message(
                 user_id,
@@ -472,15 +467,12 @@ def send_to_support(message):
         )
         monitoring.send_error(str(e), username or str(user_id))
 
-
-
 def send_support_message(message):
     bot.send_message(
         message.chat.id,
         Donation.MESSAGE,
         parse_mode="HTML"
     )
-
 
 def _parse_the_command(message) -> list:
     parts = message.text.strip().split()
@@ -494,11 +486,9 @@ def _parse_the_command(message) -> list:
 
     return [server_id, key_name]
 
-
 def _form_key_name(message) -> str:
     username = message.from_user.username or "no_username"
     return f"{message.chat.id}_{username}"
-
 
 def start_telegram_server():
     db.init_db()
