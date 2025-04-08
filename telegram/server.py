@@ -22,10 +22,6 @@ assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 admin_states = {}  # user_id -> "awaiting_premium_id"
 user_states = {}  # user_id: str
-
-
-
-waiting_for_support = False
 # Константа для лимита трафика (50 ГБ)
 DEFAULT_DATA_LIMIT_GB = 50  # Установленный лимит траффика
 
@@ -70,17 +66,16 @@ def send_welcome(message):
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
-    global waiting_for_support
-    waiting_for_support = True
-
-    is_admin = message.from_user.id in ADMIN_IDS
-    user_states[message.chat.id] = "support_mode"
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+    user_states[message.chat.id] = "support"
 
     bot.send_message(
         message.chat.id,
         Messages.HELP_PROMPT,
         reply_markup=cancel_or_back_markup(for_admin=is_admin)
     )
+
 
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
@@ -203,23 +198,29 @@ def send_servers_list(message):
 @bot.message_handler(content_types=['text'])
 @authorize
 def answer(message):
-    global waiting_for_support
-
     text = message.text.strip()
 
-    # Режим ожидания сообщения для поддержки
-    if waiting_for_support:
+    # Проверяем, находится ли пользователь в режиме поддержки
+    if user_states.get(message.chat.id) == "support":
         if text == Buttons.CANCEL:
-            waiting_for_support = False
+            user_states.pop(message.chat.id, None)
             bot.send_message(
                 message.chat.id,
                 Messages.REQUEST_CANCELED,
-                reply_markup=main_menu()  # Возвращаем главное меню
+                reply_markup=main_menu()
             )
         else:
-            # Эта функция теперь сама сбрасывает режим поддержки
-            send_to_support(message)
+            send_to_support(message)  # эта функция уже сама удалит user_states
         return
+
+    # Здесь можешь добавить другие глобальные проверки, если надо
+
+    # Если ничего не подошло, можешь ответить, например:
+    bot.send_message(
+        message.chat.id,
+        "Я не понял команду. Пожалуйста, выберите действие из меню.",
+        reply_markup=main_menu()
+    )
 
     # Обработка основных команд
     command_handlers = {
@@ -256,14 +257,14 @@ def answer(message):
 
 def set_help_mode(message):
     """Активирует режим обращения в поддержку"""
-    global waiting_for_support
-    waiting_for_support = True
+    user_states[message.chat.id] = "support"
 
     bot.send_message(
         message.chat.id,
         Messages.HELP_PROMPT,
         reply_markup=cancel_or_back_markup(for_admin=False)  # Только кнопка отмены
     )
+
 
 # --- CORE FUNCTIONS ---
 
@@ -404,43 +405,51 @@ def _send_error_message(message, error_message):
 
 
 def send_to_support(message):
-    global waiting_for_support
-
-    your_telegram_id = 245413138
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
     user_message = message.text.strip()
 
     if not user_message:
         bot.send_message(
-            message.chat.id,
+            chat_id,
             "Сообщение не может быть пустым",
-            reply_markup=cancel_or_back_markup(for_admin=False)
+            reply_markup=cancel_or_back_markup(for_admin=is_admin)
         )
         return
 
     username = message.from_user.username
-    user_link = f'<a href="https://t.me/{username}">пользователя</a>' if username else f'<a href="tg://user?id={message.from_user.id}">пользователя</a>'
+    user_link = (
+        f'<a href="https://t.me/{username}">пользователя</a>'
+        if username
+        else f'<a href="tg://user?id={user_id}">пользователя</a>'
+    )
 
     try:
         bot.send_message(
-            your_telegram_id,
+            245413138,  # Твой Telegram ID
             f"📩 Новый запрос от {user_link}:\n\n{user_message}",
             parse_mode="HTML"
         )
 
-        waiting_for_support = False
+        # Удаляем состояние поддержки
+        user_states.pop(chat_id, None)
+
         bot.send_message(
-            message.chat.id,
+            chat_id,
             Messages.SUCCESS_SENT,
-            reply_markup=main_menu()
+            reply_markup=main_menu(is_admin)
         )
     except Exception as e:
-        waiting_for_support = False
+        user_states.pop(chat_id, None)
+
         bot.send_message(
-            message.chat.id,
+            chat_id,
             Errors.DEFAULT,
-            reply_markup=main_menu()
+            reply_markup=main_menu(is_admin)
         )
-        monitoring.send_error(str(e), message.from_user.username)
+        monitoring.send_error(str(e), username or str(user_id))
+
 
 
 def send_support_message(message):
