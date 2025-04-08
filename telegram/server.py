@@ -1,4 +1,4 @@
-а import telebot
+import telebot
 from telebot import types
 from settings import (
     BOT_API_TOKEN,
@@ -10,7 +10,7 @@ from settings import (
     ADMIN_IDS
 )
 from telegram.messages import Messages, Errors, Buttons, Donation, PremiumMessages, AdminMessages
-from telegram.keyboards import main_menu, support_cancel_markup, premium_menu, admin_menu
+from telegram.keyboards import main_menu, cancel_or_back_markup, premium_menu, admin_menu
 import telegram.monitoring as monitoring
 import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
@@ -64,7 +64,7 @@ def send_welcome(message):
         reply_markup=main_menu(is_admin),
         parse_mode="HTML")
 
-
+# МЕНЮ ПОМОЩь
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
@@ -73,9 +73,9 @@ def send_help(message):
     bot.send_message(
         message.chat.id,
         Messages.HELP_PROMPT,
-        reply_markup=support_cancel_markup()
+        reply_markup=cancel_or_back_markup(for_admin=False)
     )
-
+# ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
     if message.from_user.id in ADMIN_IDS:
@@ -88,7 +88,7 @@ def handle_make_premium(message):
     bot.send_message(
         message.chat.id,
         AdminMessages.ENTER_USER_ID,
-        reply_markup=support_cancel_markup()
+        reply_markup=cancel_or_back_markup(for_admin=True)
     )
 
 # Обработка ID пользователя для PREMIUM
@@ -116,8 +116,10 @@ def process_premium_user_id(message):
         bot.send_message(
             message.chat.id,
             AdminMessages.INVALID_ID,
-            reply_markup=support_cancel_markup()
+            reply_markup=cancel_or_back_markup(for_admin=True)
         )
+
+# КНОПКА ПОСМОТРЕТЬ PREMIUM ПОЛЬЗОВАТЕЛЕЙ
 @bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
 def handle_view_premiums(message):
     premium_users = db.get_all_premium_users()  # Предполагаемая функция
@@ -144,7 +146,7 @@ def handle_back(message):
             reply_markup=main_menu()
         )
 
-
+# КНОПКА КУПИТЬ ПРЕМИУМ
 @bot.message_handler(func=lambda message: message.text == Buttons.BUY_PREMIUM)
 def handle_buy_premium(message):
     bot.send_message(
@@ -223,7 +225,7 @@ def set_help_mode(message):
     bot.send_message(
         message.chat.id,
         Messages.HELP_PROMPT,
-        reply_markup=support_cancel_markup()  # Только кнопка отмены
+        reply_markup=cancel_or_back_markup(for_admin=False)  # Только кнопка отмены
     )
 
 # --- CORE FUNCTIONS ---
@@ -374,7 +376,7 @@ def send_to_support(message):
         bot.send_message(
             message.chat.id,
             "Сообщение не может быть пустым",
-            reply_markup=support_cancel_markup()
+            reply_markup=cancel_or_back_markup(for_admin=False)
         )
         return
 
