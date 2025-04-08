@@ -55,7 +55,7 @@ def send_status(message):
 @authorize
 def send_welcome(message):
     user_id = message.from_user.id
-    is_admin = user_id in ADMIN_IDS 
+    is_admin = user_id in ADMIN_IDS
     bot.send_message(
         message.chat.id,
         Messages.WELCOME,
@@ -63,6 +63,8 @@ def send_welcome(message):
         parse_mode="HTML")
 
 # МЕНЮ ПОМОЩь
+
+
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
@@ -82,7 +84,8 @@ def send_help(message):
 def handle_admin_panel(message):
     if message.from_user.id in ADMIN_IDS:
         user_states[message.chat.id] = "admin_menu"  # <-- Добавляем это
-        bot.send_message(message.chat.id, "🔐 Админ-панель:", reply_markup=admin_menu())
+        bot.send_message(message.chat.id, "🔐 Админ-панель:",
+                         reply_markup=admin_menu())
 
 
 # PREMIUM Кнопка
@@ -97,6 +100,8 @@ def handle_premium(message):
     )
 
 # Обработка кнопки "Сделать PREMIUM"
+
+
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
 def handle_make_premium(message):
     admin_states[message.chat.id] = "awaiting_premium_id"
@@ -106,17 +111,19 @@ def handle_make_premium(message):
         reply_markup=cancel_or_back_markup(for_admin=True)
     )
 
+# баг №2
 # Обработка ID пользователя для PREMIUM
+
+
 @bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
 def process_premium_user_id(message):
-    if message.text == Buttons.CANCEL:
-        admin_states.pop(message.chat.id, None)
-        bot.send_message(
-            message.chat.id,
-            "❌ Действие отменено.",
-            reply_markup=admin_menu()
-        )
-        return
+    if message.text == Buttons.BACK:
+         admin_states.pop(message.chat.id, None)
+         bot.send_message(
+         message.chat.id,
+         Messages.REQUEST_CANCELED,
+         reply_markup=main_menu(is_admin=True))
+         return
 
     try:
         user_id = int(message.text)
@@ -135,14 +142,19 @@ def process_premium_user_id(message):
         )
 
 # КНОПКА ПОСМОТРЕТЬ PREMIUM ПОЛЬЗОВАТЕЛЕЙ
+
+
 @bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
 def handle_view_premiums(message):
     premium_users = db.get_all_premium_users()  # Предполагаемая функция
     if premium_users:
-        user_list = "\n".join([f"👤 ID: {user['user_id']}" for user in premium_users])
-        bot.send_message(message.chat.id, f"Список PREMIUM-пользователей:\n\n{user_list}", reply_markup=admin_menu())
+        user_list = "\n".join(
+            [f"👤 ID: {user['user_id']}" for user in premium_users])
+        bot.send_message(
+            message.chat.id, f"Список PREMIUM-пользователей:\n\n{user_list}", reply_markup=admin_menu())
     else:
-        bot.send_message(message.chat.id, "❗ Пока нет PREMIUM-пользователей.", reply_markup=admin_menu())
+        bot.send_message(
+            message.chat.id, "❗ Пока нет PREMIUM-пользователей.", reply_markup=admin_menu())
 
 
 @bot.message_handler(func=lambda message: message.text == Buttons.BACK)
@@ -165,12 +177,12 @@ def handle_back(message):
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(user_id in ADMIN_IDS)
         )
-
-    elif state == "awaiting_premium_id":
-        user_states.pop(user_id, None)
+    # баг 1
+    elif admin_states.get(user_id) == "awaiting_premium_id":
+        admin_states.pop(user_id, None)
         bot.send_message(
             user_id,
-            AdminMessages.ADMIN_MENU,
+            "❌ Действие отменено.",
             reply_markup=admin_menu()
         )
 
@@ -182,7 +194,7 @@ def handle_back(message):
             reply_markup=main_menu(user_id in ADMIN_IDS)
         )
 
-     else:
+    else:
         bot.send_message(
             user_id,
             Messages.REQUEST_CANCELED,
@@ -194,20 +206,19 @@ def handle_back(message):
 # КНОПКА КУПИТЬ ПРЕМИУМ
 @bot.message_handler(func=lambda message: message.text == Buttons.BUY_PREMIUM)
 def handle_buy_premium(message):
-    bot.send_message(
-        message.chat.id,
-        PremiumMessages.PAYMENT_INFO,
-        reply_markup=premium_menu(),
-        parse_mode="HTML"
-    )
-
+      bot.send_message(
+            message.chat.id,
+            PremiumMessages.PAYMENT_INFO,
+            reply_markup=premium_menu(),
+            parse_mode="HTML"
+        )
 
 @bot.message_handler(commands=['servers'])
 @authorize
 def send_servers_list(message):
     bot.send_message(message.chat.id, f.make_servers_list())
 
-
+# корректировка бага 3
 @bot.message_handler(content_types=['text'])
 @authorize
 def answer(message):
@@ -223,16 +234,16 @@ def answer(message):
             send_to_support(message)
         return
 
-    # === Режим установки премиума ===
-    if user_states.get(chat_id) == "make_premium":
+    # === Режим установки премиума (теперь через admin_states) ===
+    if admin_states.get(chat_id) == "awaiting_premium_id":
         if text == Buttons.BACK:
-            user_states.pop(chat_id, None)
+            admin_states.pop(chat_id, None)
             bot.send_message(chat_id, "Вы вернулись в админ меню.", reply_markup=admin_menu())
             return
         try:
             user_id = int(text)
             db.set_premium(user_id)
-            user_states.pop(chat_id, None)
+            admin_states.pop(chat_id, None)
             bot.send_message(chat_id, "✅ Пользователь успешно отмечен как PREMIUM.", reply_markup=admin_menu())
         except ValueError:
             bot.send_message(chat_id, "❌ Пожалуйста, введите корректный ID или нажмите Назад.")
@@ -263,13 +274,6 @@ def answer(message):
     else:
         bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu())
 
-
-    # Если ничего не подошло — неизвестная команда
-    bot.send_message(
-        chat_id,
-        Errors.UNKNOWN_COMMAND,
-        reply_markup=main_menu()
-    )
 
 
 
