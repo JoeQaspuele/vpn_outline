@@ -126,7 +126,7 @@ def process_premium_user_id(message):
         user_id = int(message.text)
         db.set_premium(user_id)  # когда будешь готов
         
-        key = db.get_user_key(user_id)
+        key_id = db.get_user_key(user_id)
         if key_id:
             limit_in_bytes = PREMIUM_DATA_LIMIT_GB * 1024**3
             outline._set_access_key_data_limit(
