@@ -37,7 +37,7 @@ def admin_menu() -> types.ReplyKeyboardMarkup:
     markup.add(
         types.KeyboardButton(Buttons.MAKE_PREMIUM),
         types.KeyboardButton(Buttons.VIEW_PREMIUMS),
-        types.KeyboardButton(Buttons.CANCEL)
+        types.KeyboardButton(Buttons.BACK)
     )
     return markup
 
