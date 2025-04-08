@@ -137,6 +137,15 @@ def handle_back(message):
             reply_markup=admin_menu()
         )
 
+@bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
+def handle_view_premiums(message):
+    premium_users = db.get_all_premium_users()  # Предполагаемая функция
+    if premium_users:
+        user_list = "\n".join([f"👤 ID: {user['user_id']}" for user in premium_users])
+        bot.send_message(message.chat.id, f"Список PREMIUM-пользователей:\n\n{user_list}", reply_markup=admin_menu())
+    else:
+        bot.send_message(message.chat.id, "❗ Пока нет PREMIUM-пользователей.", reply_markup=admin_menu())
+
 
 @bot.message_handler(func=lambda message: message.text == Buttons.BACK)
 def handle_back_to_main(message):
