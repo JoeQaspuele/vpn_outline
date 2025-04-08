@@ -199,13 +199,14 @@ def send_servers_list(message):
 @authorize
 def answer(message):
     text = message.text.strip()
+    chat_id = message.chat.id
 
     # Проверяем, находится ли пользователь в режиме поддержки
-    if user_states.get(message.chat.id) == "support":
+    if user_states.get(chat_id) == "support":
         if text == Buttons.CANCEL:
-            user_states.pop(message.chat.id, None)
+            user_states.pop(chat_id, None)
             bot.send_message(
-                message.chat.id,
+                chat_id,
                 Messages.REQUEST_CANCELED,
                 reply_markup=main_menu()
             )
@@ -213,16 +214,7 @@ def answer(message):
             send_to_support(message)  # эта функция уже сама удалит user_states
         return
 
-    # Здесь можешь добавить другие глобальные проверки, если надо
-
-    # Если ничего не подошло, можешь ответить, например:
-    bot.send_message(
-        message.chat.id,
-        "Я не понял команду. Пожалуйста, выберите действие из меню.",
-        reply_markup=main_menu()
-    )
-
-    # Обработка основных команд
+    # Обработка основных кнопок
     command_handlers = {
         Buttons.GET_KEY: lambda msg: _make_new_key(
             msg,
@@ -235,24 +227,28 @@ def answer(message):
             f.make_download_message(),
             disable_web_page_preview=True
         ),
-        Buttons.SUPPORT: lambda msg: (
-            set_help_mode(msg)  # Новая функция для активации режима помощи
-        ),
+        Buttons.SUPPORT: lambda msg: set_help_mode(msg),
         Buttons.DONATE: lambda msg: send_support_message(msg)
     }
 
-    # Обработка команды /newkey
+    # Обработка команды /newkey отдельно
     if text.startswith("/newkey"):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
-    elif text in command_handlers:
+        return
+
+    # Проверка на нажатие известных кнопок
+    if text in command_handlers:
         command_handlers[text](message)
-    else:
-        bot.send_message(
-            message.chat.id,
-            Errors.UNKNOWN_COMMAND,
-            reply_markup=main_menu()
-        )
+        return
+
+    # Если ничего не подошло — неизвестная команда
+    bot.send_message(
+        chat_id,
+        Errors.UNKNOWN_COMMAND,
+        reply_markup=main_menu()
+    )
+
 
 
 def set_help_mode(message):
