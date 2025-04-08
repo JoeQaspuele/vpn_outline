@@ -81,6 +81,15 @@ def handle_admin_panel(message):
     if message.from_user.id in ADMIN_IDS:
         bot.send_message(message.chat.id, "🔐 Админ-панель:", reply_markup=admin_menu())
 
+@bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
+def handle_premium(message):
+    bot.send_message(
+        message.chat.id,
+        PremiumMessages.DESCRIPTION,
+        reply_markup=premium_menu(),
+        parse_mode="HTML"
+    )
+
 # Обработка кнопки "Сделать PREMIUM"
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
 def handle_make_premium(message):
