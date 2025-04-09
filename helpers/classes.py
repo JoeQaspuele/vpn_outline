@@ -10,6 +10,8 @@ class OutlineKey(NamedTuple):
     kid: KeyId
     name: str
     access_url: AccessUrl
+    limit: int | None = None  # лимит в байтах
+    used: int | None = None   # использовано в байтах
 
 
 class AmneziaKey(NamedTuple):
