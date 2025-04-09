@@ -135,6 +135,12 @@ def process_premium_user_id(message):
                 server_id=DEFAULT_SERVER_ID
             )
         
+        bot.send_message(
+            user_id,
+            PREMIUM_WELCOME,
+            parse_mode="HTML"
+        )
+        
         admin_states.pop(message.chat.id, None)
         bot.send_message(
             message.chat.id,
