@@ -64,8 +64,6 @@ def send_welcome(message):
         parse_mode="HTML")
 
 # МЕНЮ ПОМОЩь
-
-
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
@@ -78,7 +76,37 @@ def send_help(message):
         Messages.HELP_PROMPT,
         reply_markup=cancel_or_back_markup(for_admin=is_admin)
     )
+    
+# Хэндлер проверки траффика 
+@bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
+def handle_check_traffic(message):
+    user_id = message.chat.id
+    key_id = db.get_user_key(user_id)
 
+    if not key_id:
+        bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
+        return
+
+    try:
+        key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
+        if key.limit and key.used is not None:
+            remaining = round((key.limit - key.used) / 1024**3, 2)
+            used = round(key.used / 1024**3, 2)
+            limit = round(key.limit / 1024**3, 2)
+
+            bot.send_message(
+                user_id,
+                PremiumMessages.TRAFFIC_INFO.format(
+                    remaining=remaining,
+                    used=used,
+                    limit=limit
+                ),
+                parse_mode="HTML"
+            )
+        else:
+            bot.send_message(user_id, "ℹ️ Для вашего ключа не установлен лимит трафика.")
+    except Exception as e:
+        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
 
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
@@ -101,8 +129,6 @@ def handle_premium(message):
     )
 
 # Обработка кнопки "Сделать PREMIUM"
-
-
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
 def handle_make_premium(message):
     admin_states[message.chat.id] = "awaiting_premium_id"
@@ -276,6 +302,7 @@ def answer(message):
         Buttons.DOWNLOAD: lambda msg: bot.send_message(msg.chat.id, f.make_download_message(), disable_web_page_preview=True),
         Buttons.SUPPORT: set_help_mode,
         Buttons.DONATE: send_support_message,
+        Buttons.CHECK_TRAFFIC: handle_check_traffic,
     }
 
     if text.startswith("/newkey"):
@@ -430,12 +457,7 @@ def _send_key(message, key, server_id):
 
 def _send_error_message(message, error_message):
     bot.send_message(message.chat.id, error_message)
-    monitoring.send_error(
-        error_message,
-        message.from_user.username,
-        message.from_user.first_name,
-        message.from_user.last_name
-    )
+    monitoring.send_error(error_message)
 
 
 def send_to_support(message):
