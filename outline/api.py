@@ -139,5 +139,13 @@ def _set_access_key_data_limit(key_id: KeyId, limit_in_bytes: int, server_id: Se
         print(f"[ERROR] Ошибка при установке лимита: {str(e)}")
         raise  # Пробрасываем исключение дальше
 
+def _get_metrics(server_id: ServerId) -> dict[str, int]:
+    url = servers[server_id].api_url + '/metrics/transfer'
+    r = requests.get(url, verify=False)
+    r.raise_for_status()
+    data = r.json()
+    return data.get("bytesTransferredByUserId", {})
+
+
 if __name__ == "__main__":
     print(check_api_status())
