@@ -65,7 +65,12 @@ def get_key_by_id(key_id: str, server_id: ServerId) -> OutlineKey:
     keys = _parse_response(r)["accessKeys"]
     for key in keys:
         if key["id"] == key_id:
-            # ✅ добавляем метрику
+            # ✅ Добавим лимит
+            limit = None
+            if "dataLimit" in key and "bytes" in key["dataLimit"]:
+                limit = key["dataLimit"]["bytes"]
+
+            # ✅ Добавим used
             metrics = _get_metrics(server_id)
             used = None
             if metrics and key_id in metrics:
@@ -75,8 +80,10 @@ def get_key_by_id(key_id: str, server_id: ServerId) -> OutlineKey:
                 kid=key["id"],
                 name=key["name"],
                 access_url=key["accessUrl"],
-                used=used  # 👈 теперь used не будет None
+                limit=limit,
+                used=used
             )
+
     raise KeyError(f"Key with ID '{key_id}' not found.")
 
 
