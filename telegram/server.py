@@ -132,8 +132,7 @@ def process_premium_user_id(message):
             outline._set_access_key_data_limit(
                 key_id=key_id,
                 limit_in_bytes=limit_in_bytes,
-                server_id=server_id
-                #server_id=int(DEFAULT_SERVER_ID)
+                server_id=DEFAULT_SERVER_ID
             )
         
         admin_states.pop(message.chat.id, None)
