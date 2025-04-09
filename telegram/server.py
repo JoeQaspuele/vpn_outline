@@ -89,17 +89,20 @@ def handle_check_traffic(message):
 
     try:
         key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
-        if key.limit is not None and key.used is not None:
-            remaining = round((key.limit - key.used) / 1024**3, 2)
-            used = round(key.used / 1024**3, 2)
-            limit = round(key.limit / 1024**3, 2)
+        print(f"DEBUG: key.limit={key.limit}, key.used={key.used}")
+
+        if key.limit is not None:
+            used = key.used or 0  # если None — ставим 0
+            remaining = max(0, round((key.limit - used) / 1024**3, 2))
+            used_gb = round(used / 1024**3, 2)
+            limit_gb = round(key.limit / 1024**3, 2)
 
             bot.send_message(
                 user_id,
                 PremiumMessages.TRAFFIC_INFO.format(
                     remaining=remaining,
-                    used=used,
-                    limit=limit
+                    used=used_gb,
+                    limit=limit_gb
                 ),
                 parse_mode="HTML"
             )
