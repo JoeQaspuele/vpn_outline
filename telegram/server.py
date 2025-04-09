@@ -9,7 +9,7 @@ from settings import (
     ENABLE_WHITELIST,
     ADMIN_IDS
 )
-from telegram.messages import Messages, Errors, Buttons, Donation, PremiumMessages, AdminMessages
+from telegram.messages import Messages, Errors, Buttons, Donation, PremiumMessages, AdminMessages, Premium
 from telegram.keyboards import main_menu, cancel_or_back_markup, premium_menu, admin_menu
 import telegram.monitoring as monitoring
 import outline.api as outline
