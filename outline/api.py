@@ -65,7 +65,17 @@ def get_key_by_id(key_id: str, server_id: ServerId) -> OutlineKey:
     keys = _parse_response(r)["accessKeys"]
     for key in keys:
         if key["id"] == key_id:
-            return OutlineKey(kid=key["id"], name=key["name"], access_url=key["accessUrl"])
+            limit = key.get("dataLimit", {}).get("bytes")
+            used = key.get("metrics", {}).get("bytesTransferred")
+            
+            return OutlineKey(
+                kid=key["id"],
+                name=key["name"],
+                access_url=key["accessUrl"],
+                limit=limit,
+                used=used
+            )
+            
     raise KeyError(f"Key with ID '{key_id}' not found.")
 
 def check_api_status() -> dict:
