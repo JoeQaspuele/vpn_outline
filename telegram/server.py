@@ -89,7 +89,7 @@ def handle_check_traffic(message):
 
     try:
         key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
-        if key.limit and key.used is not None:
+        if key.limit is not None and key.used is not None:
             remaining = round((key.limit - key.used) / 1024**3, 2)
             used = round(key.used / 1024**3, 2)
             limit = round(key.limit / 1024**3, 2)
@@ -457,7 +457,10 @@ def _send_key(message, key, server_id):
 
 def _send_error_message(message, error_message):
     bot.send_message(message.chat.id, error_message)
-    monitoring.send_error(error_message)
+    monitoring.send_error(
+        error_message, 
+        message.from_user.username or "нет username"
+    )
 
 
 def send_to_support(message):
