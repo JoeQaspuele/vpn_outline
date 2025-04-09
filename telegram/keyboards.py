@@ -9,6 +9,7 @@ def main_menu() -> types.ReplyKeyboardMarkup:
         types.KeyboardButton(Buttons.MY_KEY),
         types.KeyboardButton(Buttons.DOWNLOAD),
         types.KeyboardButton(Buttons.PREMIUM),
+        types.KeyboardButton(Buttons.CHECK_TRAFFIC),
         types.KeyboardButton(Buttons.SUPPORT),
         types.KeyboardButton(Buttons.DONATE)
     if is_admin:
