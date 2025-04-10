@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 from outline import api
+from settings import DEFAULT_SERVER_ID
 
 
 DB_PATH = 'users.db'
