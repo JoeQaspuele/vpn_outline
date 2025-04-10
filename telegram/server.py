@@ -537,5 +537,6 @@ def _form_key_name(message) -> str:
 
 def start_telegram_server():
     db.init_db()
+    db.check_premium_expiration()  # 💥 Проверка перед запуском
     monitoring.send_start_message()
     bot.infinity_polling()
