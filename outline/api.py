@@ -13,7 +13,7 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 def get_new_key(key_name: Optional[str], server_id: ServerId, data_limit_gb: int = 50) -> OutlineKey:
     """
-    Создает новый ключ с лимитом трафика (по умолчанию 15 ГБ).
+    Создает новый ключ с лимитом трафика (по умолчанию 50 ГБ).
     
     :param key_name: Имя ключа (если None, будет сгенерировано автоматически)
     :param server_id: ID сервера Outline
@@ -86,7 +86,6 @@ def get_key_by_id(key_id: str, server_id: ServerId) -> OutlineKey:
 
     raise KeyError(f"Key with ID '{key_id}' not found.")
 
-
 def check_api_status() -> dict:
     api_status_codes = {}
     for server_id, server in servers.items():
@@ -152,7 +151,6 @@ def _get_metrics(server_id: ServerId) -> dict[str, int]:
     r.raise_for_status()
     data = r.json()
     return data.get("bytesTransferredByUserId", {})
-
 
 if __name__ == "__main__":
     print(check_api_status())
