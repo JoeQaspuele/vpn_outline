@@ -140,4 +140,40 @@ def get_all_premium_users():
     # Возвращаем список словарей, можно и просто список ID
     return [{"user_id": row[0]} for row in rows]
 
+import sqlite3
+from datetime import datetime
+
+DB_NAME = "users.db"  # Имя вашей базы данных
+
+def increase_traffic_limits():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+
+    # Получаем всех пользователей
+    c.execute("SELECT user_id, key_name, isPremium FROM users")
+    users = c.fetchall()
+
+    for user_id, key_name, is_premium in users:
+        # Пропускаем премиум пользователей, обновление лимитов для них позже
+        if is_premium:
+            continue
+
+        # Получаем текущий лимит и использование
+        c.execute("SELECT limit, used FROM keys WHERE name = ?", (key_name,))
+        row = c.fetchone()
+        if row is None:
+            continue
+        current_limit, current_used = row
+
+        # Прибавляем 15 ГБ для обычных пользователей
+        added = 15 * 1024**3
+        new_limit = current_limit + added
+
+        # Обновляем лимит в базе данных (не сбрасываем used)
+        c.execute("UPDATE keys SET limit = ?, used = ? WHERE name = ?", (new_limit, current_used, key_name))
+
+    conn.commit()
+    conn.close()
+
+
 
