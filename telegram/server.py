@@ -16,16 +16,15 @@ import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
-import db import initialize_user_limit
+import db
 from datetime import datetime, timedelta
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
 admin_states = {}  # user_id -> "awaiting_premium_id"
 user_states = {}  # user_id: str
-# Константа для лимита трафика (15 ГБ)
 DEFAULT_DATA_LIMIT_GB = 15  # Установленный лимит траффика
-PREMIUM_DATA_LIMIT_GB = 50 
+PREMIUM_DATA_LIMIT_GB = 50  # Трафик для PREMIUM пользователей
 
 # --- ACCESS CONTROL DECORATOR ---
 
@@ -77,8 +76,8 @@ def send_help(message):
         Messages.HELP_PROMPT,
         reply_markup=cancel_or_back_markup(for_admin=is_admin)
     )
-    
-# Хэндлер проверки траффика 
+
+# Хэндлер проверки траффика
 @bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
 def handle_check_traffic(message):
     user_id = message.chat.id
@@ -128,8 +127,6 @@ def handle_check_traffic(message):
             bot.send_message(user_id, "ℹ️ Для вашего ключа не установлен лимит трафика.")
     except Exception as e:
         bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
-
-
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
@@ -172,8 +169,8 @@ def process_premium_user_id(message):
 
     try:
         user_id = int(message.text)
-        db.set_premium(user_id)  # когда будешь готов
-        
+        db.set_premium(user_id)
+
         key_id = db.get_user_key(user_id)
         if key_id:
             limit_in_bytes = PREMIUM_DATA_LIMIT_GB * 1024**3
@@ -182,13 +179,13 @@ def process_premium_user_id(message):
                 limit_in_bytes=limit_in_bytes,
                 server_id=DEFAULT_SERVER_ID
             )
-        
+
         bot.send_message(
             user_id,
-            PREMIUM_WELCOME,
+            PremiumMessages.PREMIUM_WELCOME,
             parse_mode="HTML"
         )
-        
+
         admin_states.pop(message.chat.id, None)
         bot.send_message(
             message.chat.id,
@@ -203,8 +200,6 @@ def process_premium_user_id(message):
         )
 
 # КНОПКА ПОСМОТРЕТЬ PREMIUM ПОЛЬЗОВАТЕЛЕЙ
-
-
 @bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
 def handle_view_premiums(message):
     premium_users = db.get_all_premium_users()  # Предполагаемая функция
@@ -238,7 +233,7 @@ def handle_back(message):
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(user_id in ADMIN_IDS)
         )
-    
+
     elif admin_states.get(user_id) == "awaiting_premium_id":
         admin_states.pop(user_id, None)
         bot.send_message(
@@ -261,7 +256,6 @@ def handle_back(message):
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(user_id in ADMIN_IDS)
         )
-
 
 
 # КНОПКА КУПИТЬ ПРЕМИУМ
@@ -324,7 +318,6 @@ def answer(message):
         Buttons.DOWNLOAD: lambda msg: bot.send_message(msg.chat.id, f.make_download_message(), disable_web_page_preview=True),
         Buttons.SUPPORT: set_help_mode,
         Buttons.DONATE: send_support_message,
-        Buttons.CHECK_TRAFFIC: handle_check_traffic,
     }
 
     if text.startswith("/newkey"):
@@ -335,9 +328,6 @@ def answer(message):
     else:
         bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu())
 
-
-
-
 def set_help_mode(message):
     """Активирует режим обращения в поддержку"""
     user_states[message.chat.id] = "support"
@@ -345,7 +335,7 @@ def set_help_mode(message):
     bot.send_message(
         message.chat.id,
         Messages.HELP_PROMPT,
-        reply_markup=cancel_or_back_markup(for_admin=False) 
+        reply_markup=cancel_or_back_markup(for_admin=False)
     )
 
 
@@ -386,10 +376,7 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 # Шаг 3: Сохраняем новый ключ
                 db.save_user_key(user_id, key.kid)
 
-                # Шаг 4: Инициализируем лимит трафика для нового ключа
-                initialize_user_limit(user_id, server_id)
-
-                # Шаг 5: Отправляем ключ пользователю
+                # Шаг 4: Отправляем ключ пользователю
                 _send_key(message, key, server_id)
 
             except KeyCreationError:
@@ -417,10 +404,6 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                     data_limit_gb=DEFAULT_DATA_LIMIT_GB
                 )
                 db.save_user_key(user_id, key.kid)
-
-                # Инициализируем лимит трафика для нового ключа
-                initialize_user_limit(user_id, server_id)
-
                 _send_key(message, key, server_id)
             except Exception as e:
                 _send_error_message(message, Errors.API_FAIL)
@@ -438,10 +421,6 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 data_limit_gb=DEFAULT_DATA_LIMIT_GB
             )
             db.save_user_key(user_id, key.kid)
-
-            # Инициализируем лимит трафика для нового ключа
-            initialize_user_limit(user_id, server_id)
-
             _send_key(message, key, server_id)
 
         except KeyCreationError:
@@ -450,7 +429,6 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
             _send_error_message(message, Errors.API_RENAMING_FAILED)
         except InvalidServerIdError:
             bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
-
 
 
 def _send_existing_key(message):
@@ -490,7 +468,7 @@ def _send_key(message, key, server_id):
 def _send_error_message(message, error_message):
     bot.send_message(message.chat.id, error_message)
     monitoring.send_error(
-        error_message, 
+        error_message,
         message.from_user.username or "нет username"
     )
 
