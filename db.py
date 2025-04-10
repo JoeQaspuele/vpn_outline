@@ -167,5 +167,19 @@ def update_user_limits(user_id: int, used: float, limit: int = 15):
             'UPDATE users SET used = ?, limit = ? WHERE user_id = ?',
             (used, limit, user_id)
         conn.commit()
-
+            
+def get_user_data(user_id: int) -> dict:
+    """Возвращает данные пользователя (limit, used, isPremium)"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT "limit", "used", isPremium FROM users WHERE user_id = ?', 
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return {
+            'limit': row[0] if row else 15,
+            'used': row[1] if row else 0,
+            'isPremium': bool(row[2]) if row else False
+        }
 
