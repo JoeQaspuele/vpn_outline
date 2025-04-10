@@ -22,3 +22,5 @@ def reset_monthly_limits():
         
         # Сохраняем used в БД
         update_user_limits(user['user_id'], used_gb, 15)
+
+print(f"[DEBUG] Обновлён лимит для key_id={key_id}: {new_limit_bytes / (1024**3):.2f} GB")
