@@ -137,33 +137,7 @@ def get_all_premium_users():
     rows = cursor.fetchall()
     
     conn.close()
-
-
-def reset_monthly_traffic_limit():
-    """Сбрасывает лимит трафика до 15 ГБ для пользователей, у которых isPremium = 0."""
-    try:
-        with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT user_id FROM users WHERE isPremium = 0')  # Выбираем только не-премиум пользователей
-            user_ids = cursor.fetchall()
-
-            for user_id_tuple in user_ids:
-                user_id = user_id_tuple[0]
-                key = get_user_key(user_id)
-                if key:
-                    api._set_access_key_data_limit(
-                        key_id=key,
-                        limit_in_bytes=FREE_DATA_LIMIT_GB * 1024**3,
-                        server_id=DEFAULT_SERVER_ID
-                    )
-                    print(f"✅ Лимит трафика сброшен для пользователя {user_id}.")
-
-            conn.commit()
-            print("✅ Сброс лимита трафика завершён.")
-
-    except Exception as e:
-        print(f"⚠️ Ошибка при сбросе лимита трафика: {e}")
-
-    
     # Возвращаем список словарей, можно и просто список ID
     return [{"user_id": row[0]} for row in rows]
+
+
