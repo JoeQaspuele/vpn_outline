@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 DB_PATH = 'users.db'
 
@@ -81,14 +82,13 @@ def set_premium(user_id: int):
         cursor.execute('UPDATE users SET isPremium = 1 WHERE user_id = ?', (user_id,))
         conn.commit()
 
-def get_all_premium_users():
-    conn = sqlite3.connect(DB_PATH)  # Замени на своё имя базы, если другое
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT user_id FROM users WHERE isPremium = 1")
-    rows = cursor.fetchall()
-    
-    conn.close()
+def set_premium(user_id: int):
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+        cursor = conn.cursor()
+        premium_date = datetime.utcnow().isoformat()
+        cursor.execute('UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?', (premium_date, user_id))
+        conn.commit()
+
     
     # Возвращаем список словарей, можно и просто список ID
     return [{"user_id": row[0]} for row in rows]
