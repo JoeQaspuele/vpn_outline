@@ -143,7 +143,7 @@ def get_all_premium_users():
 
 def initialize_user_limit(user_id: int, server_id: ServerId):
     # Получаем метрику через API
-    metrics = _get_metrics(server_id)  # Потребление по меткам Outline
+    metrics = api._get_metrics(server_id)  # Потребление по меткам Outline
     transferred_data = metrics.get(str(user_id), 0)  # Преобразуем ID пользователя в строку для поиска в метрике
 
     # Начальный лимит 15 ГБ
