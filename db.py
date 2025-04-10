@@ -136,13 +136,29 @@ def get_all_premium_users():
 # Возвращаем список словарей, можно и просто список ID
     return [{"user_id": row[0]} for row in rows]
 
-def get_all_users() -> list[dict]:
-    """Возвращает всех пользователей с их ключами."""
+def get_all_users(only_regular: bool = True) -> list[dict]:
+    """Возвращает пользователей с их ключами.
+    Args:
+        only_regular: Если True (по умолчанию), возвращает только обычных пользователей (не премиум).
+    """
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT user_id, key_name, limit, used FROM users')
-        return [{'user_id': row[0], 'key_name': row[1], 'limit': row[2], 'used': row[3]} for row in cursor.fetchall()]
-
+        if only_regular:
+            cursor.execute('''
+                SELECT user_id, key_name, "limit", "used" 
+                FROM users 
+                WHERE isPremium = 0
+            ''')
+        else:
+            cursor.execute('SELECT user_id, key_name, "limit", "used" FROM users')
+            
+        return [{
+            'user_id': row[0], 
+            'key_name': row[1], 
+            'limit': row[2], 
+            'used': row[3]
+        } for row in cursor.fetchall()]
+        
 def update_user_limits(user_id: int, used: float, limit: int = 15):
     """Обновляет used и limit для пользователя."""
     with sqlite3.connect(DB_PATH) as conn:
