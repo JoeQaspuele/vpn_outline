@@ -1,12 +1,12 @@
 import sqlite3
-from datetime import datetime
+import requests
 from outline import api
+from datetime import datetime, timedelta
 from settings import DEFAULT_SERVER_ID
 
-
-DB_PATH = 'users.db'
 PREMIUM_DURATION_DAYS = 31
 FREE_DATA_LIMIT_GB = 15
+DB_PATH = 'users.db'
 
 def init_db():
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
@@ -15,6 +15,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 key_name TEXT
+                isPremium INTEGER DEFAULT 0
             )
         ''')
         cursor.execute('''
@@ -84,12 +85,6 @@ def remove_key(user_id: int):
 def set_premium(user_id: int):
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         cursor = conn.cursor()
-        cursor.execute('UPDATE users SET isPremium = 1 WHERE user_id = ?', (user_id,))
-        conn.commit()
-
-def set_premium(user_id: int):
-    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
-        cursor = conn.cursor()
         premium_date = datetime.utcnow().isoformat()
         cursor.execute('UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?', (premium_date, user_id))
         conn.commit()
@@ -111,6 +106,7 @@ def check_premium_expiration():
                         # Снижаем лимит до 15 ГБ
                         key = get_user_key(user_id)
                         if key:
+                            #from outline import api
                             api._set_access_key_data_limit(
                                 key_id=key,
                                 limit_in_bytes=FREE_DATA_LIMIT_GB * 1024**3,
@@ -121,7 +117,6 @@ def check_premium_expiration():
 
         conn.commit()
 
-
 def get_premium_date(user_id: int) -> str | None:
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         cursor = conn.cursor()
@@ -129,72 +124,16 @@ def get_premium_date(user_id: int) -> str | None:
         row = cursor.fetchone()
         return row[0] if row else None
 
+
 def get_all_premium_users():
-    conn = sqlite3.connect(DB_PATH)  # Замени на своё имя базы, если другое
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute("SELECT user_id FROM users WHERE isPremium = 1")
     rows = cursor.fetchall()
-    
+
     conn.close()
-    # Возвращаем список словарей, можно и просто список ID
+# Возвращаем список словарей, можно и просто список ID
     return [{"user_id": row[0]} for row in rows]
-    
-
-def initialize_user_limit(user_id: int, server_id: ServerId):
-    # Получаем метрику через API
-    metrics = api._get_metrics(server_id)  # Потребление по меткам Outline
-    transferred_data = metrics.get(str(user_id), 0)  # Преобразуем ID пользователя в строку для поиска в метрике
-
-    # Начальный лимит 15 ГБ
-    initial_limit = 15 * 1024**3  # 15 ГБ
-    current_used = transferred_data  # Текущее потребление пользователя по метрике
-
-    # Сохраняем данные в базу
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    # Вставляем или обновляем данные
-    c.execute('INSERT OR REPLACE INTO users (user_id, key_name, "limit", used) VALUES (?, ?, ?, ?)', 
-              (user_id, server_id, initial_limit, current_used))
-
-    conn.commit()
-    conn.close()
-    print(f"✅ Инициализация для пользователя {user_id} завершена.")
-
-
-def increase_traffic_limits():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-
-    # Получаем всех пользователей
-    c.execute("SELECT user_id, key_name, isPremium FROM users")
-    users = c.fetchall()
-
-    for user_id, key_name, is_premium in users:
-        # Пропускаем премиум пользователей
-        if is_premium:
-            continue
-
-        # Получаем текущий лимит и использованный трафик
-        c.execute('SELECT "limit", used FROM users WHERE user_id = ?', (user_id,))
-        row = c.fetchone()
-        if row is None:
-            continue
-        current_limit, current_used = row
-
-        # Прибавляем 15 ГБ для обычных пользователей
-        added = 15 * 1024**3  # 15 ГБ
-        new_limit = current_limit + added
-
-        # Обновляем лимит и сбрасываем использованный трафик
-        c.execute('UPDATE users SET "limit" = ?, used = 0 WHERE user_id = ?', (new_limit, user_id))
-
-    conn.commit()
-    conn.close()
-
-# Запускаем обновление
-increase_traffic_limits()
-print("✅ Лимиты обновлены.")
 
 
