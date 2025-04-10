@@ -152,5 +152,10 @@ def _get_metrics(server_id: ServerId) -> dict[str, int]:
     data = r.json()
     return data.get("bytesTransferredByUserId", {})
 
+def get_traffic_for_key(key_id: KeyId, server_id: ServerId) -> int:
+    """Возвращает трафик в байтах для указанного ключа."""
+    metrics = _get_metrics(server_id)
+    return metrics.get(key_id, 0)
+
 if __name__ == "__main__":
     print(check_api_status())
