@@ -139,11 +139,29 @@ def get_all_premium_users():
     conn.close()
     # Возвращаем список словарей, можно и просто список ID
     return [{"user_id": row[0]} for row in rows]
+    
 
-import sqlite3
-from datetime import datetime
+def initialize_user_limit(user_id: int, server_id: ServerId):
+    # Получаем метрику через API
+    metrics = _get_metrics(server_id)  # Потребление по меткам Outline
+    transferred_data = metrics.get(str(user_id), 0)  # Преобразуем ID пользователя в строку для поиска в метрике
 
-DB_NAME = "users.db"  # Имя вашей базы данных
+    # Начальный лимит 15 ГБ
+    initial_limit = 15 * 1024**3  # 15 ГБ
+    current_used = transferred_data  # Текущее потребление пользователя по метрике
+
+    # Сохраняем данные в базу
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Вставляем или обновляем данные
+    c.execute('INSERT OR REPLACE INTO users (user_id, key_name, "limit", used) VALUES (?, ?, ?, ?)', 
+              (user_id, server_id, initial_limit, current_used))
+
+    conn.commit()
+    conn.close()
+    print(f"✅ Инициализация для пользователя {user_id} завершена.")
+
 
 def increase_traffic_limits():
     conn = sqlite3.connect(DB_NAME)
@@ -154,26 +172,29 @@ def increase_traffic_limits():
     users = c.fetchall()
 
     for user_id, key_name, is_premium in users:
-        # Пропускаем премиум пользователей, обновление лимитов для них позже
+        # Пропускаем премиум пользователей
         if is_premium:
             continue
 
-        # Получаем текущий лимит и использование
-        c.execute("SELECT limit, used FROM keys WHERE name = ?", (key_name,))
+        # Получаем текущий лимит и использованный трафик
+        c.execute('SELECT "limit", used FROM users WHERE user_id = ?', (user_id,))
         row = c.fetchone()
         if row is None:
             continue
         current_limit, current_used = row
 
         # Прибавляем 15 ГБ для обычных пользователей
-        added = 15 * 1024**3
+        added = 15 * 1024**3  # 15 ГБ
         new_limit = current_limit + added
 
-        # Обновляем лимит в базе данных (не сбрасываем used)
-        c.execute("UPDATE keys SET limit = ?, used = ? WHERE name = ?", (new_limit, current_used, key_name))
+        # Обновляем лимит и сбрасываем использованный трафик
+        c.execute('UPDATE users SET "limit" = ?, used = 0 WHERE user_id = ?', (new_limit, user_id))
 
     conn.commit()
     conn.close()
 
+# Запускаем обновление
+increase_traffic_limits()
+print("✅ Лимиты обновлены.")
 
 
