@@ -375,6 +375,7 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
 
                 # Шаг 3: Сохраняем новый ключ
                 db.save_user_key(user_id, key.kid)
+                db.update_user_limits(user_id, 0, DEFAULT_DATA_LIMIT_GB)  # used=0, limit=15
 
                 # Шаг 4: Отправляем ключ пользователю
                 _send_key(message, key, server_id)
@@ -404,6 +405,7 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                     data_limit_gb=DEFAULT_DATA_LIMIT_GB
                 )
                 db.save_user_key(user_id, key.kid)
+                db.update_user_limits(user_id, 0, DEFAULT_DATA_LIMIT_GB)  # used=0, limit=15
                 _send_key(message, key, server_id)
             except Exception as e:
                 _send_error_message(message, Errors.API_FAIL)
