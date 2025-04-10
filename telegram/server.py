@@ -17,6 +17,7 @@ from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServer
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
 import db
+from datetime import datetime, timedelta
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
@@ -92,24 +93,42 @@ def handle_check_traffic(message):
         print(f"DEBUG: key.limit={key.limit}, key.used={key.used}")
 
         if key.limit is not None:
-            used = key.used or 0  # если None — ставим 0
+            used = key.used or 0
             remaining = max(0, round((key.limit - used) / 1024**3, 2))
             used_gb = round(used / 1024**3, 2)
             limit_gb = round(key.limit / 1024**3, 2)
 
-            bot.send_message(
-                user_id,
-                PremiumMessages.TRAFFIC_INFO.format(
-                    remaining=remaining,
-                    used=used_gb,
-                    limit=limit_gb
-                ),
-                parse_mode="HTML"
-            )
+            # Получаем дату начала подписки
+            since_str = db.get_premium_date(user_id)
+            if since_str:
+                since = datetime.fromisoformat(since_str)
+                until = since + timedelta(days=31)
+                bot.send_message(
+                    user_id,
+                    PremiumMessages.TRAFFIC_INFO_WITH_PREMIUM.format(
+                        remaining=remaining,
+                        used=used_gb,
+                        limit=limit_gb,
+                        since=since.strftime('%d.%m.%Y'),
+                        until=until.strftime('%d.%m.%Y')
+                    ),
+                    parse_mode="HTML"
+                )
+            else:
+                bot.send_message(
+                    user_id,
+                    PremiumMessages.TRAFFIC_INFO.format(
+                        remaining=remaining,
+                        used=used_gb,
+                        limit=limit_gb
+                    ),
+                    parse_mode="HTML"
+                )
         else:
             bot.send_message(user_id, "ℹ️ Для вашего ключа не установлен лимит трафика.")
     except Exception as e:
         bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
+
 
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
