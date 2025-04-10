@@ -88,45 +88,51 @@ def handle_check_traffic(message):
         return
 
     try:
+        # Получаем данные из БД
+        user_data = db.get_user_data(user_id)  # Нужно добавить этот метод в db.py
+        # Получаем метрики из Outline
         key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
-        print(f"DEBUG: key.limit={key.limit}, key.used={key.used}")
+        
+        # Общее потребление за всё время (из метрик Outline)
+        total_used_bytes = key.used if key.used else 0
+        total_used_gb = round(total_used_bytes / 1024**3, 2)
+        
+        # Данные за текущий месяц (из БД)
+        current_month_used_gb = user_data.get('used', 0)
+        current_limit_gb = user_data.get('limit', 15)
+        remaining_gb = max(0, current_limit_gb - current_month_used_gb)
 
-        if key.limit is not None:
-            used = key.used or 0
-            remaining = max(0, round((key.limit - used) / 1024**3, 2))
-            used_gb = round(used / 1024**3, 2)
-            limit_gb = round(key.limit / 1024**3, 2)
-
-            # Получаем дату начала подписки
-            since_str = db.get_premium_date(user_id)
-            if since_str:
-                since = datetime.fromisoformat(since_str)
-                until = since + timedelta(days=31)
-                bot.send_message(
-                    user_id,
-                    PremiumMessages.TRAFFIC_INFO_WITH_PREMIUM.format(
-                        remaining=remaining,
-                        used=used_gb,
-                        limit=limit_gb,
-                        since=since.strftime('%d.%m.%Y'),
-                        until=until.strftime('%d.%m.%Y')
-                    ),
-                    parse_mode="HTML"
-                )
-            else:
-                bot.send_message(
-                    user_id,
-                    PremiumMessages.TRAFFIC_INFO.format(
-                        remaining=remaining,
-                        used=used_gb,
-                        limit=limit_gb
-                    ),
-                    parse_mode="HTML"
-                )
+        # Получаем дату начала подписки (для премиум)
+        since_str = db.get_premium_date(user_id)
+        
+        if since_str:
+            since = datetime.fromisoformat(since_str)
+            until = since + timedelta(days=31)
+            message_text = (
+                "📊 <b>Статистика по вашему ключу (PREMIUM):</b>\n\n"
+                f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
+                f"📡 <b>Использовано в этом месяце:</b> {current_month_used_gb} ГБ\n"
+                f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
+                f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ\n\n"
+                "💎 <b>PREMIUM-подписка:</b>\n"
+                f"🕒 Активирована: <b>{since.strftime('%d.%m.%Y')}</b>\n"
+                f"📅 Действует до: <b>{until.strftime('%d.%m.%Y')}</b>"
+            )
         else:
-            bot.send_message(user_id, "ℹ️ Для вашего ключа не установлен лимит трафика.")
+            message_text = (
+                "📊 <b>Статистика по вашему ключу (FREE):</b>\n\n"
+                f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
+                f"📡 <b>Использовано в этом месяце:</b> {current_month_used_gb} ГБ\n"
+                f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
+                f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ"
+            )
+
+        bot.send_message(user_id, message_text, parse_mode="HTML")
+
     except Exception as e:
         bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
+        print(f"Error in handle_check_traffic: {e}")
+        
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
