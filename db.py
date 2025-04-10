@@ -129,6 +129,15 @@ def get_premium_date(user_id: int) -> str | None:
         row = cursor.fetchone()
         return row[0] if row else None
 
+def get_all_premium_users():
+    conn = sqlite3.connect(DB_PATH)  # Замени на своё имя базы, если другое
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT user_id FROM users WHERE isPremium = 1")
+    rows = cursor.fetchall()
+    
+    conn.close()
+
 
 def reset_monthly_traffic_limit():
     """Сбрасывает лимит трафика до 15 ГБ для пользователей, у которых isPremium = 0."""
