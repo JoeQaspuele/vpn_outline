@@ -16,7 +16,7 @@ import outline.api as outline
 from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServerIdError
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
-import db
+import db import initialize_user_limit
 from datetime import datetime, timedelta
 
 assert BOT_API_TOKEN is not None
@@ -350,8 +350,6 @@ def set_help_mode(message):
 
 
 # --- CORE FUNCTIONS ---
-
-
 def _make_new_key(message, server_id: ServerId, key_name: str):
     """
     Создает новый VPN-ключ или обрабатывает существующий ключ пользователя.
@@ -388,7 +386,10 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 # Шаг 3: Сохраняем новый ключ
                 db.save_user_key(user_id, key.kid)
 
-                # Шаг 4: Отправляем ключ пользователю
+                # Шаг 4: Инициализируем лимит трафика для нового ключа
+                initialize_user_limit(user_id, server_id)
+
+                # Шаг 5: Отправляем ключ пользователю
                 _send_key(message, key, server_id)
 
             except KeyCreationError:
@@ -416,6 +417,10 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                     data_limit_gb=DEFAULT_DATA_LIMIT_GB
                 )
                 db.save_user_key(user_id, key.kid)
+
+                # Инициализируем лимит трафика для нового ключа
+                initialize_user_limit(user_id, server_id)
+
                 _send_key(message, key, server_id)
             except Exception as e:
                 _send_error_message(message, Errors.API_FAIL)
@@ -433,6 +438,10 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 data_limit_gb=DEFAULT_DATA_LIMIT_GB
             )
             db.save_user_key(user_id, key.kid)
+
+            # Инициализируем лимит трафика для нового ключа
+            initialize_user_limit(user_id, server_id)
+
             _send_key(message, key, server_id)
 
         except KeyCreationError:
@@ -441,6 +450,7 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
             _send_error_message(message, Errors.API_RENAMING_FAILED)
         except InvalidServerIdError:
             bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
+
 
 
 def _send_existing_key(message):
