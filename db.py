@@ -1,5 +1,7 @@
 import sqlite3
 from datetime import datetime
+from outline import api
+
 
 DB_PATH = 'users.db'
 PREMIUM_DURATION_DAYS = 31
@@ -91,8 +93,6 @@ def set_premium(user_id: int):
         cursor.execute('UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?', (premium_date, user_id))
         conn.commit()
 
-from datetime import datetime, timedelta
-
 def check_premium_expiration():
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         cursor = conn.cursor()
@@ -110,7 +110,6 @@ def check_premium_expiration():
                         # Снижаем лимит до 15 ГБ
                         key = get_user_key(user_id)
                         if key:
-                            from outline import api
                             api._set_access_key_data_limit(
                                 key_id=key,
                                 limit_in_bytes=FREE_DATA_LIMIT_GB * 1024**3,
