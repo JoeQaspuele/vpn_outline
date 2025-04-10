@@ -18,7 +18,11 @@ def reset_monthly_limits():
         
         # Обновляем лимит: used + 15 ГБ (новый лимит)
         new_limit_bytes = (used_gb + 15) * (1024 ** 3)
-        _set_access_key_data_limit(key_id, new_limit_bytes, DEFAULT_SERVER_ID)
+        
+        try:
+            _set_access_key_data_limit(key_id, new_limit_bytes, DEFAULT_SERVER_ID)
+        except Exception as e:
+            print(f"Ошибка для key_id={key_id}: {str(e)}")
         
         # Сохраняем used в БД
         update_user_limits(user['user_id'], used_gb, 15)
