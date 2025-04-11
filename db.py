@@ -184,3 +184,26 @@ def get_user_data(user_id: int) -> dict:
         'isPremium': bool(row[2]) if row else False
     }
 
+# Получить дату и байты начала месяца
+def get_traffic_reset_info(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT traffic_start_bytes, traffic_start_date FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return row[0] or 0, row[1]
+    return 0, None
+
+# Установить новые данные начала месяца
+def set_traffic_reset_info(user_id, start_bytes):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET traffic_start_bytes = ?, traffic_start_date = ? WHERE user_id = ?",
+        (start_bytes, datetime.now().isoformat(), user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
