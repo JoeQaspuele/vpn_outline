@@ -179,8 +179,8 @@ def get_user_data(user_id: int) -> dict:
         )
         row = cursor.fetchone()
         return {
-            'limit': row[0] if row else 15,
-            'used': row[1] if row else 0,
-            'isPremium': bool(row[2]) if row else False
-        }
+            'limit': row[0] or 15,
+            'used': row[1] or 0,
+        'isPremium': bool(row[2]) if row else False
+    }
 
