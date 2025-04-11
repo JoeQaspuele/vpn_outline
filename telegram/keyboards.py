@@ -1,19 +1,35 @@
 from telebot import types
 from telegram.messages import Buttons
 
-def main_menu() -> types.ReplyKeyboardMarkup:
-    """Главное меню с кнопками"""
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+def main_menu(is_admin: bool = False) -> types.ReplyKeyboardMarkup:
+    """Главное меню с улучшенными кнопками"""
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    
+    # Первый ряд (2 кнопки)
     markup.add(
         types.KeyboardButton(Buttons.GET_KEY),
-        types.KeyboardButton(Buttons.MY_KEY),
+        types.KeyboardButton(Buttons.MY_KEY)
+    )
+    
+    # Второй ряд (2 кнопки)
+    markup.add(
         types.KeyboardButton(Buttons.DOWNLOAD),
+        types.KeyboardButton(Buttons.CHECK_TRAFFIC)
+    )
+    
+    # Третий ряд (2 кнопки)
+    markup.add(
         types.KeyboardButton(Buttons.PREMIUM),
-        types.KeyboardButton(Buttons.CHECK_TRAFFIC),
-        types.KeyboardButton(Buttons.SUPPORT),
-        types.KeyboardButton(Buttons.DONATE)
+        types.KeyboardButton(Buttons.SUPPORT)
+    )
+    
+    # Четвертый ряд (1 кнопка)
+    markup.add(types.KeyboardButton(Buttons.DONATE))
+    
     if is_admin:
+        # Отдельный ряд для админки
         markup.add(types.KeyboardButton(Buttons.ADMIN))
+    
     return markup
 
 def cancel_or_back_markup(for_admin=False) -> types.ReplyKeyboardMarkup:
