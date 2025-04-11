@@ -164,8 +164,8 @@ def update_user_limits(user_id: int, used: float, limit: int = 15):
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            'UPDATE users SET used = ?, "limit" = ? WHERE user_id = ?',
-            (used, limit, user_id)
+            'UPDATE users SET used = ?, "limit" = ?, traffic_start_bytes = ?, traffic_start_date = ? WHERE user_id = ?',
+             (used, limit, used_bytes, datetime.utcnow().isoformat(), user_id)
         )
         conn.commit()
             
