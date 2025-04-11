@@ -94,6 +94,13 @@ def handle_check_traffic(message):
         total_used_bytes = key.used if key.used else 0
         total_used_gb = round(total_used_bytes / 1024**3, 2)
 
+        user_data = db.get_user_data(user_id)
+        start_bytes = user_data.get("traffic_start_bytes", 0)
+        start_date_str = user_data.get("traffic_start_date")
+
+        print(f"[DEBUG] total_used_bytes: {total_used_bytes}")
+        print(f"[DEBUG] start_bytes: {start_bytes}")
+        print(f"[DEBUG] traffic_start_date: {start_date_str}")
         # ⚡ Новая логика
         start_bytes, start_date_str = db.get_traffic_reset_info(user_id)
         now = datetime.now()
