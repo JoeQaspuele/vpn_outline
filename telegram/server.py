@@ -88,30 +88,43 @@ def handle_check_traffic(message):
         return
 
     try:
-        # Получаем данные из БД
-        user_data = db.get_user_data(user_id)  # Нужно добавить этот метод в db.py
-        # Получаем метрики из Outline
+        user_data = db.get_user_data(user_id)
         key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
-        
-        # Общее потребление за всё время (из метрик Outline)
+
         total_used_bytes = key.used if key.used else 0
         total_used_gb = round(total_used_bytes / 1024**3, 2)
-        
-        # Данные за текущий месяц (из БД)
-        current_month_used_gb = user_data.get('used', 0)
-        current_limit_gb = user_data.get('limit', 15)
-        remaining_gb = max(0, current_limit_gb - current_month_used_gb)
 
-        # Получаем дату начала подписки (для премиум)
+        # ⚡ Новая логика
+        start_bytes, start_date_str = db.get_traffic_reset_info(user_id)
+        now = datetime.now()
+
+        if not start_date_str:
+            # Нет данных — устанавливаем
+            db.set_traffic_reset_info(user_id, total_used_bytes)
+            used_this_month_gb = 0
+        else:
+            start_date = datetime.fromisoformat(start_date_str)
+            if start_date.month != now.month or start_date.year != now.year:
+                # Новый месяц — сброс
+                db.set_traffic_reset_info(user_id, total_used_bytes)
+                used_this_month_gb = 0
+            else:
+                # Всё в том же месяце — считаем разницу
+                used_this_month_gb = round((total_used_bytes - start_bytes) / 1024**3, 2)
+
+        # Лимит: берём из базы (у тебя уже есть)
+        current_limit_gb = user_data.get('limit', 15)
+        remaining_gb = max(0, current_limit_gb - used_this_month_gb)
+
+        # Дата подписки
         since_str = db.get_premium_date(user_id)
-        
         if since_str:
             since = datetime.fromisoformat(since_str)
             until = since + timedelta(days=31)
             message_text = (
                 "📊 <b>Статистика по вашему ключу (PREMIUM):</b>\n\n"
                 f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
-                f"📡 <b>Использовано в этом месяце:</b> {current_month_used_gb} ГБ\n"
+                f"📡 <b>Использовано в этом месяце:</b> {used_this_month_gb} ГБ\n"
                 f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
                 f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ\n\n"
                 "💎 <b>PREMIUM-подписка:</b>\n"
@@ -122,7 +135,7 @@ def handle_check_traffic(message):
             message_text = (
                 "📊 <b>Статистика по вашему ключу (FREE):</b>\n\n"
                 f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
-                f"📡 <b>Использовано в этом месяце:</b> {current_month_used_gb} ГБ\n"
+                f"📡 <b>Использовано в этом месяце:</b> {used_this_month_gb} ГБ\n"
                 f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
                 f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ"
             )
@@ -130,8 +143,9 @@ def handle_check_traffic(message):
         bot.send_message(user_id, message_text, parse_mode="HTML")
 
     except Exception as e:
-        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
-        print(f"Error in handle_check_traffic: {e}")
+        bot.send_message(user_id, "❌ Произошла ошибка при получении статистики.")
+        print(f"[ERROR] handle_check_traffic: {e}")
+
         
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
