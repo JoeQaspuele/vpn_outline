@@ -77,7 +77,7 @@ def send_help(message):
         reply_markup=cancel_or_back_markup(for_admin=is_admin)
     )
 
-# Хэндлер проверки траффика
+#Хэндлер кнопки проверки трафика
 @bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
 def handle_check_traffic(message):
     user_id = message.chat.id
@@ -88,72 +88,54 @@ def handle_check_traffic(message):
         return
 
     try:
+        # Получаем все данные за один запрос
         user_data = db.get_user_data(user_id)
         key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
 
+        # Текущий трафик из Outline (в байтах)
         total_used_bytes = key.used if key.used else 0
         total_used_gb = round(total_used_bytes / 1024**3, 2)
 
-        user_data = db.get_user_data(user_id)
-        start_bytes = user_data.get("traffic_start_bytes", 0)
-        start_date_str = user_data.get("traffic_start_date")
-
-        print(f"[DEBUG] total_used_bytes: {total_used_bytes}")
-        print(f"[DEBUG] start_bytes: {start_bytes}")
-        print(f"[DEBUG] traffic_start_date: {start_date_str}")
-        # ⚡ Новая логика
+        # Данные о сбросе
         start_bytes, start_date_str = db.get_traffic_reset_info(user_id)
-        now = datetime.now()
+        start_bytes = start_bytes or 0  # Защита от None
 
+        # Проверяем, нужно ли обновить точку отсчёта
+        now = datetime.now()
         if not start_date_str:
-            # Нет данных — устанавливаем
+            # Первый запрос - устанавливаем точку отсчёта
             db.set_traffic_reset_info(user_id, total_used_bytes)
             used_this_month_gb = 0
         else:
             start_date = datetime.fromisoformat(start_date_str)
             if start_date.month != now.month or start_date.year != now.year:
-                # Новый месяц — сброс
+                # Новый месяц - обновляем точку отсчёта
                 db.set_traffic_reset_info(user_id, total_used_bytes)
                 used_this_month_gb = 0
             else:
-                # Всё в том же месяце — считаем разницу
-                used_this_month_gb = round((total_used_bytes - start_bytes) / 1024**3, 2)
+                # Трафик за текущий месяц = разница с точкой отсчёта
+                used_this_month_bytes = max(0, total_used_bytes - start_bytes)
+                used_this_month_gb = round(used_this_month_bytes / 1024**3, 2)
 
-        # Лимит: берём из базы (у тебя уже есть)
+        # Рассчитываем оставшийся трафик
         current_limit_gb = user_data.get('limit', 15)
         remaining_gb = max(0, current_limit_gb - used_this_month_gb)
 
-        # Дата подписки
-        since_str = db.get_premium_date(user_id)
-        if since_str:
-            since = datetime.fromisoformat(since_str)
-            until = since + timedelta(days=31)
-            message_text = (
-                "📊 <b>Статистика по вашему ключу (PREMIUM):</b>\n\n"
-                f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
-                f"📡 <b>Использовано в этом месяце:</b> {used_this_month_gb} ГБ\n"
-                f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
-                f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ\n\n"
-                "💎 <b>PREMIUM-подписка:</b>\n"
-                f"🕒 Активирована: <b>{since.strftime('%d.%m.%Y')}</b>\n"
-                f"📅 Действует до: <b>{until.strftime('%d.%m.%Y')}</b>"
-            )
-        else:
-            message_text = (
-                "📊 <b>Статистика по вашему ключу (FREE):</b>\n\n"
-                f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
-                f"📡 <b>Использовано в этом месяце:</b> {used_this_month_gb} ГБ\n"
-                f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
-                f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ"
-            )
+        # Формируем сообщение
+        message_text = (
+            "📊 <b>Статистика трафика:</b>\n\n"
+            f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
+            f"📡 <b>Использовано в этом месяце:</b> {used_this_month_gb} ГБ\n"
+            f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
+            f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ"
+        )
 
         bot.send_message(user_id, message_text, parse_mode="HTML")
 
     except Exception as e:
-        bot.send_message(user_id, "❌ Произошла ошибка при получении статистики.")
-        print(f"[ERROR] handle_check_traffic: {e}")
+        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
+        print(f"Error in handle_check_traffic: {e}")
 
-        
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
@@ -225,6 +207,71 @@ def process_premium_user_id(message):
             AdminMessages.INVALID_ID,
             reply_markup=cancel_or_back_markup(for_admin=True)
         )
+
+@bot.message_handler(func=lambda message: message.text == Buttons.EXTEND_PREMIUM)
+def handle_extend_premium(message):
+    admin_states[message.chat.id] = "awaiting_extend_data"
+    bot.send_message(
+        message.chat.id,
+        "Введите ID пользователя и количество дней через пробел (например: <code>123456 15</code>)",
+        parse_mode="HTML",
+        reply_markup=cancel_or_back_markup(for_admin=True)
+    )
+
+@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_extend_data")
+def process_extend_premium(message):
+    if message.text == Buttons.BACK:
+        admin_states.pop(message.chat.id, None)
+        bot.send_message(
+            message.chat.id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=admin_menu()
+        )
+        return
+
+    try:
+        user_id, days = map(int, message.text.split())
+        if days <= 0:
+            raise ValueError
+        
+        # Получаем текущую дату премиума
+        current_date = db.get_premium_date(user_id) or datetime.utcnow().isoformat()
+        
+        # Рассчитываем новую дату окончания
+        new_end_date = (datetime.fromisoformat(current_date) + timedelta(days=days)).isoformat()
+        
+        # Обновляем в БД
+        db.extend_premium(user_id, new_end_date)
+        
+        # Обновляем лимит трафика
+        key_id = db.get_user_key(user_id)
+        if key_id:
+            daily_limit_gb = round(PREMIUM_DATA_LIMIT_GB / 30 * days, 2)
+            new_limit_bytes = int(daily_limit_gb * (1024 ** 3))
+            outline._set_access_key_data_limit(key_id, new_limit_bytes, DEFAULT_SERVER_ID)
+        
+        bot.send_message(
+            message.chat.id,
+            f"✅ Премиум для пользователя {user_id} продлён на {days} дней\n"
+            f"Новый лимит трафика: {daily_limit_gb:.2f} ГБ",
+            reply_markup=admin_menu()
+        )
+        
+    except (ValueError, IndexError):
+        bot.send_message(
+            message.chat.id,
+            "❌ Неверный формат. Введите ID и дни через пробел (например: <code>123456 15</code>)",
+            parse_mode="HTML",
+            reply_markup=cancel_or_back_markup(for_admin=True)
+        )
+    except Exception as e:
+        bot.send_message(
+            message.chat.id,
+            f"⚠️ Ошибка: {str(e)}",
+            reply_markup=admin_menu()
+        )
+    finally:
+        admin_states.pop(message.chat.id, None)
 
 # КНОПКА ПОСМОТРЕТЬ PREMIUM ПОЛЬЗОВАТЕЛЕЙ
 @bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
@@ -355,6 +402,12 @@ def answer(message):
     else:
         bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu())
 
+@bot.message_handler(content_types=['photo', 'document', 'voice', 'sticker'])
+def handle_support_media(message):
+    if user_states.get(message.chat.id) == "support":
+        send_to_support(message)
+
+
 def set_help_mode(message):
     """Активирует режим обращения в поддержку"""
     user_states[message.chat.id] = "support"
@@ -433,6 +486,7 @@ def _make_new_key(message, server_id: ServerId, key_name: str):
                 )
                 db.save_user_key(user_id, key.kid)
                 db.update_user_limits(user_id, 0, DEFAULT_DATA_LIMIT_GB)  # used=0, limit=15
+
                 _send_key(message, key, server_id)
             except Exception as e:
                 _send_error_message(message, Errors.API_FAIL)
@@ -506,15 +560,6 @@ def send_to_support(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
     is_admin = user_id in ADMIN_IDS
-    user_message = message.text.strip()
-
-    if not user_message:
-        bot.send_message(
-            chat_id,
-            "Сообщение не может быть пустым",
-            reply_markup=cancel_or_back_markup(for_admin=is_admin)
-        )
-        return
 
     username = message.from_user.username
     user_link = (
@@ -524,13 +569,30 @@ def send_to_support(message):
     )
 
     try:
-        bot.send_message(
-            245413138,  # Твой Telegram ID
-            f"📩 Новый запрос от {user_link}:\n\n{user_message}",
-            parse_mode="HTML"
-        )
+        if message.text:
+            support_text = f"📩 Новый запрос от {user_link}:\n\n{message.text}"
+            bot.send_message(245413138, support_text, parse_mode="HTML")
 
-        # Удаляем состояние поддержки
+        elif message.photo:
+            photo = message.photo[-1]
+            caption = f"📸 Фото от {user_link}"
+            if message.caption:
+                caption += f"\n\n{message.caption}"
+            bot.send_photo(245413138, photo.file_id, caption=caption, parse_mode="HTML")
+
+        elif message.document:
+            caption = f"📁 Файл от {user_link}"
+            if message.caption:
+                caption += f"\n\n{message.caption}"
+            bot.send_document(245413138, message.document.file_id, caption=caption, parse_mode="HTML")
+
+        elif message.voice:
+            bot.send_voice(245413138, message.voice.file_id, caption=f"🎤 Голосовое от {user_link}", parse_mode="HTML")
+
+        elif message.sticker:
+            bot.send_message(245413138, f"🛑 Стикер от {user_link} (ID: {message.sticker.file_id})")
+
+        # После обработки — очищаем состояние
         user_states.pop(chat_id, None)
 
         bot.send_message(
@@ -538,15 +600,16 @@ def send_to_support(message):
             Messages.SUCCESS_SENT,
             reply_markup=main_menu(is_admin)
         )
+
     except Exception as e:
         user_states.pop(chat_id, None)
-
         bot.send_message(
             chat_id,
             Errors.DEFAULT,
             reply_markup=main_menu(is_admin)
         )
         monitoring.send_error(str(e), username or str(user_id))
+
 
 def send_support_message(message):
     bot.send_message(
