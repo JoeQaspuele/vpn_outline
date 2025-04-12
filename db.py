@@ -225,7 +225,7 @@ def extend_premium(self, user_id: int, days: int) -> bool:
             since = current_date
         
         # Рассчитываем новую дату окончания
-        new_until = (datetime.fromisoformat(until) if until else datetime.now()
+        new_until = (datetime.fromisoformat(until) if until else datetime.now())
         new_until += timedelta(days=days)
         
         # Обновляем в БД
