@@ -168,13 +168,13 @@ def update_user_limits(user_id: int, used: float, limit: int = 15):
             (used, limit, 0, datetime.utcnow().isoformat(), user_id)  # used_bytes заменено на 0
         )
         conn.commit()
-        
+
 def get_user_data(user_id: int) -> dict:
     """Возвращает ВСЕ данные пользователя за один запрос"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT "limit", "used", isPremium, traffic_start_bytes, traffic_start_date 
+            SELECT "limit", "used", isPremium, traffic_start_bytes, traffic_start_date, premium_since, premium_until
             FROM users
             WHERE user_id = ?
         ''', (user_id,))
@@ -185,8 +185,11 @@ def get_user_data(user_id: int) -> dict:
             'used': row[1] if row else 0,
             'isPremium': bool(row[2]) if row else False,
             'traffic_start_bytes': row[3] if row and row[3] is not None else 0,
-            'traffic_start_date': row[4] if row else None
+            'traffic_start_date': row[4] if row else None,
+            'premium_since': row[5] if row else None,
+            'premium_until': row[6] if row else None
         } if row else None
+
 
 # Получить дату и байты начала месяца
 def get_traffic_reset_info(user_id):
@@ -211,14 +214,15 @@ def set_traffic_reset_info(user_id, start_bytes):
     conn.close()
 
 def extend_premium(user_id: int, new_end_date: str):
-    """Продлевает премиум-статус до указанной даты"""
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            'UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?',
-            (new_end_date, user_id))
+            'UPDATE users SET isPremium = 1, premium_until = ? WHERE user_id = ?',
+            (new_end_date, user_id)
+        )
         conn.commit()
-        
+
+
 def init_user(user_id: int):
     """Создает запись пользователя с дефолтными значениями"""
     with sqlite3.connect(DB_PATH) as conn:
@@ -227,4 +231,35 @@ def init_user(user_id: int):
             'INSERT OR IGNORE INTO users (user_id, "used", "limit") VALUES (?, 0, 15)',
             (user_id,)
         )
+        conn.commit()
+
+def get_premium_dates(user_id: int) -> tuple[str | None, str | None]:
+    """Возвращает дату начала и окончания премиума"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT premium_since, premium_until FROM users WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
+        return row if row else (None, None)
+
+def activate_premium(user_id: int, since_date: str, until_date: str):
+    """Активация премиума с датой начала и окончания"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        # Сначала получим текущую дату
+        cursor.execute("SELECT premium_since FROM users WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        existing_since = row[0] if row else None
+
+        # Если уже активирован, только продлеваем
+        if existing_since:
+            cursor.execute(
+                "UPDATE users SET isPremium = 1 WHERE user_id = ?",
+                (user_id,)
+            )
+        else:
+            # Устанавливаем дату активации
+            cursor.execute(
+                "UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?",
+                (since_date, user_id)
+            )
         conn.commit()
