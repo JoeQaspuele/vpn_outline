@@ -77,64 +77,98 @@ def send_help(message):
         reply_markup=cancel_or_back_markup(for_admin=is_admin)
     )
 
+
 #Хэндлер кнопки проверки трафика
+
 @bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
 def handle_check_traffic(message):
     user_id = message.chat.id
-    key_id = db.get_user_key(user_id)
-
-    if not key_id:
-        bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
-        return
+    print(f"\n=== DEBUG: Обработка трафика для user_id={user_id} ===")
 
     try:
-        # Получаем все данные за один запрос
-        user_data = db.get_user_data(user_id)
-        key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
+        # 1. Получаем базовые данные
+        key_id = db.get_user_key(user_id)
+        if not key_id:
+            bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
+            return
 
-        # Текущий трафик из Outline (в байтах)
+        user_data = db.get_user_data(user_id)
+        is_premium = user_data.get('isPremium', False)
+        
+        # 2. Получаем полные данные о премиуме
+        premium_data = db.get_full_premium_data(user_id)
+        if not premium_data and is_premium:
+            print("[WARNING] Премиум активен, но данные не найдены!")
+            premium_data = {
+                'activated_date': datetime.now().isoformat(),
+                'days_added': 0
+            }
+
+        # 3. Расчёт лимита и дат
+        if is_premium:
+            base_limit = 50  # Базовый месячный лимит
+            additional_limit = round(premium_data['days_added'] * (50 / 30), 2)  # ~1.67 ГБ/день
+            current_limit_gb = base_limit + additional_limit
+            
+            since_date = datetime.fromisoformat(premium_data['activated_date'])
+            until_date = since_date + timedelta(days=30 + premium_data['days_added'])
+        else:
+            current_limit_gb = 15  # Лимит для обычных пользователей
+
+        # 4. Получаем данные трафика
+        key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
         total_used_bytes = key.used if key.used else 0
         total_used_gb = round(total_used_bytes / 1024**3, 2)
 
-        # Данные о сбросе
+        # 5. Месячный сброс трафика
         start_bytes, start_date_str = db.get_traffic_reset_info(user_id)
-        start_bytes = start_bytes or 0  # Защита от None
+        start_bytes = start_bytes or 0
 
-        # Проверяем, нужно ли обновить точку отсчёта
         now = datetime.now()
         if not start_date_str:
-            # Первый запрос - устанавливаем точку отсчёта
             db.set_traffic_reset_info(user_id, total_used_bytes)
             used_this_month_gb = 0
         else:
             start_date = datetime.fromisoformat(start_date_str)
             if start_date.month != now.month or start_date.year != now.year:
-                # Новый месяц - обновляем точку отсчёта
                 db.set_traffic_reset_info(user_id, total_used_bytes)
                 used_this_month_gb = 0
             else:
-                # Трафик за текущий месяц = разница с точкой отсчёта
                 used_this_month_bytes = max(0, total_used_bytes - start_bytes)
                 used_this_month_gb = round(used_this_month_bytes / 1024**3, 2)
 
-        # Рассчитываем оставшийся трафик
-        current_limit_gb = user_data.get('limit', 15)
         remaining_gb = max(0, current_limit_gb - used_this_month_gb)
 
-        # Формируем сообщение
-        message_text = (
-            "📊 <b>Статистика трафика:</b>\n\n"
-            f"🔋 <b>Осталось в этом месяце:</b> {remaining_gb} ГБ\n"
-            f"📡 <b>Использовано в этом месяце:</b> {used_this_month_gb} ГБ\n"
-            f"📦 <b>Лимит в этом месяце:</b> {current_limit_gb} ГБ\n"
-            f"🌐 <b>Всего использовано за всё время:</b> {total_used_gb} ГБ"
-        )
+        # 6. Формируем сообщение
+        if is_premium:
+            message_text = PremiumMessages.TRAFFIC_INFO_WITH_PREMIUM.format(
+                remaining=remaining_gb,
+                used=used_this_month_gb,
+                limit=current_limit_gb,
+                since=since_date.strftime('%d.%m.%Y'),
+                until=until_date.strftime('%d.%m.%Y')
+            )
+        else:
+            message_text = PremiumMessages.TRAFFIC_INFO.format(
+                remaining=remaining_gb,
+                used=used_this_month_gb,
+                limit=current_limit_gb
+            )
 
+        # 7. Добавляем общий трафик (один раз)
+        message_text += f"\n🌐 <b>Всего использовано:</b> {total_used_gb} ГБ"
+
+        # 8. Отправляем результат
         bot.send_message(user_id, message_text, parse_mode="HTML")
 
+        print(f"[DEBUG] Отправлено сообщение:\n{message_text}")
+
     except Exception as e:
-        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
-        print(f"Error in handle_check_traffic: {e}")
+        error_msg = f"⚠️ Ошибка: {str(e)}"
+        print(f"[ERROR] {error_msg}\n{traceback.format_exc()}")
+        bot.send_message(user_id, Errors.DEFAULT)
+
+    print(f"=== Обработка завершена для user_id={user_id} ===\n")
 
 # ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
