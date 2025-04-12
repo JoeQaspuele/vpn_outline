@@ -14,7 +14,7 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 def get_new_key(key_name: Optional[str], server_id: ServerId, data_limit_gb: int = 50) -> OutlineKey:
     """
     Создает новый ключ с лимитом трафика (по умолчанию 50 ГБ).
-    
+
     :param key_name: Имя ключа (если None, будет сгенерировано автоматически)
     :param server_id: ID сервера Outline
     :param data_limit_gb: Лимит трафика в гигабайтах
@@ -33,7 +33,7 @@ def get_new_key(key_name: Optional[str], server_id: ServerId, data_limit_gb: int
         key_name = f"key_{key_id[:8]}"
 
     _rename_key(key_id, key_name, server_id)
-    
+
     # Устанавливаем лимит трафика
     if data_limit_gb > 0:  # Если 0 - безлимитный ключ
         _set_access_key_data_limit(key_id, data_limit_gb * 1024**3, server_id)
@@ -97,7 +97,7 @@ def check_api_status() -> dict:
 def _set_access_key_data_limit(key_id: KeyId, limit_in_bytes: int, server_id: ServerId) -> None:
     """
     Устанавливает лимит трафика для ключа.
-    
+
     :param key_id: ID ключа
     :param limit_in_bytes: Лимит в байтах
     :param server_id: ID сервера
@@ -130,16 +130,16 @@ def _set_access_key_data_limit(key_id: KeyId, limit_in_bytes: int, server_id: Se
     limit_url = servers[server_id].api_url + f'/access-keys/{key_id}/data-limit'
     headers = {"Content-Type": "application/json"}
     data = {"limit": {"bytes": limit_in_bytes}}  # Важно: именно такой формат!
-    
+
     # Добавляем логирование перед запросом
     print(f"[DEBUG] Устанавливаю лимит для ключа {key_id}: {data}")
-    
+
     try:
         r = requests.put(limit_url, headers=headers, json=data, verify=False)
-        
+
         # Логируем ответ API
         print(f"[DEBUG] Ответ API. Статус: {r.status_code}, Текст: {r.text}")
-        
+
         r.raise_for_status()
     except Exception as e:
         print(f"[ERROR] Ошибка при установке лимита: {str(e)}")
