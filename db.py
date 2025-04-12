@@ -164,11 +164,11 @@ def update_user_limits(user_id: int, used: float, limit: int = 15):
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            'UPDATE users SET used = ?, "limit" = ?, traffic_start_bytes = ?, traffic_start_date = ? WHERE user_id = ?',
-             (used, limit, used_bytes, datetime.utcnow().isoformat(), user_id)
+            'UPDATE users SET "used" = ?, "limit" = ?, traffic_start_bytes = ?, traffic_start_date = ? WHERE user_id = ?',
+            (used, limit, 0, datetime.utcnow().isoformat(), user_id)  # used_bytes заменено на 0
         )
         conn.commit()
-
+        
 def get_user_data(user_id: int) -> dict:
     """Возвращает ВСЕ данные пользователя за один запрос"""
     with sqlite3.connect(DB_PATH) as conn:
