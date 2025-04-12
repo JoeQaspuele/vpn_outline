@@ -145,20 +145,20 @@ def get_all_users(only_regular: bool = True) -> list[dict]:
         cursor = conn.cursor()
         if only_regular:
             cursor.execute('''
-                SELECT user_id, key_name, "limit", "used" 
-                FROM users 
+                SELECT user_id, key_name, "limit", "used"
+                FROM users
                 WHERE isPremium = 0
             ''')
         else:
             cursor.execute('SELECT user_id, key_name, "limit", "used" FROM users')
-            
+
         return [{
-            'user_id': row[0], 
-            'key_name': row[1], 
-            'limit': row[2], 
+            'user_id': row[0],
+            'key_name': row[1],
+            'limit': row[2],
             'used': row[3]
         } for row in cursor.fetchall()]
-        
+
 def update_user_limits(user_id: int, used: float, limit: int = 15):
     """Обновляет used и limit для пользователя."""
     with sqlite3.connect(DB_PATH) as conn:
@@ -168,25 +168,29 @@ def update_user_limits(user_id: int, used: float, limit: int = 15):
              (used, limit, used_bytes, datetime.utcnow().isoformat(), user_id)
         )
         conn.commit()
-            
+
 def get_user_data(user_id: int) -> dict:
-    """Возвращает данные пользователя (limit, used, isPremium)"""
+    """Возвращает ВСЕ данные пользователя за один запрос"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            'SELECT "limit", "used", isPremium FROM users WHERE user_id = ?', 
-            (user_id,)
-        )
+        cursor.execute('''
+            SELECT "limit", "used", isPremium, traffic_start_bytes, traffic_start_date 
+            FROM users
+            WHERE user_id = ?
+        ''', (user_id,))
         row = cursor.fetchone()
+
         return {
-            'limit': row[0] or 15,
-            'used': row[1] or 0,
-        'isPremium': bool(row[2]) if row else False
-    }
+            'limit': row[0] if row else 15,
+            'used': row[1] if row else 0,
+            'isPremium': bool(row[2]) if row else False,
+            'traffic_start_bytes': row[3] if row and row[3] is not None else 0,
+            'traffic_start_date': row[4] if row else None
+        } if row else None
 
 # Получить дату и байты начала месяца
 def get_traffic_reset_info(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT traffic_start_bytes, traffic_start_date FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -197,7 +201,7 @@ def get_traffic_reset_info(user_id):
 
 # Установить новые данные начала месяца
 def set_traffic_reset_info(user_id, start_bytes):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE users SET traffic_start_bytes = ?, traffic_start_date = ? WHERE user_id = ?",
@@ -206,4 +210,11 @@ def set_traffic_reset_info(user_id, start_bytes):
     conn.commit()
     conn.close()
 
-
+def extend_premium(user_id: int, new_end_date: str):
+    """Продлевает премиум-статус до указанной даты"""
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?',
+            (new_end_date, user_id))
+        conn.commit()
