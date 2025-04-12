@@ -213,14 +213,31 @@ def set_traffic_reset_info(user_id, start_bytes):
     conn.commit()
     conn.close()
 
-def extend_premium(user_id: int, new_end_date: str):
-    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            'UPDATE users SET isPremium = 1, premium_until = ? WHERE user_id = ?',
-            (new_end_date, user_id)
+def extend_premium(self, user_id: int, days: int) -> bool:
+    """Продлевает премиум на указанное количество дней"""
+    try:
+        # Получаем текущие даты
+        since, until = self.get_premium_dates(user_id)
+        current_date = datetime.now().isoformat()
+        
+        # Если премиум не активен, устанавливаем новую дату начала
+        if not since:
+            since = current_date
+        
+        # Рассчитываем новую дату окончания
+        new_until = (datetime.fromisoformat(until) if until else datetime.now()
+        new_until += timedelta(days=days)
+        
+        # Обновляем в БД
+        self.cursor.execute(
+            'UPDATE users SET isPremium = 1, premium_since = ?, premium_until = ? WHERE user_id = ?',
+            (since, new_until.isoformat(), user_id)
         )
-        conn.commit()
+        self.conn.commit()
+        return True
+    except Exception as e:
+        print(f"[DB ERROR] extend_premium: {e}")
+        return False
 
 
 def init_user(user_id: int):
@@ -263,3 +280,8 @@ def activate_premium(user_id: int, since_date: str, until_date: str):
                 (since_date, user_id)
             )
         conn.commit()
+
+def get_premium_limit(self, user_id: int) -> int:
+    """Возвращает лимит трафика с учётом премиума"""
+    self.cursor.execute('SELECT isPremium FROM users WHERE user_id = ?', (user_id,))
+    return 50 if self.cursor.fetchone()[0] else 15
