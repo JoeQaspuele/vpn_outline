@@ -44,14 +44,12 @@ def authorize(func):
     return wrapper
 
 # --- HANDLERS ---
-
-
 @bot.message_handler(commands=['status'])
 @authorize
 def send_status(message):
     monitoring.send_api_status()
 
-
+# HANDLER /START
 @bot.message_handler(commands=['start'])
 @authorize
 def send_welcome(message):
@@ -63,109 +61,7 @@ def send_welcome(message):
         reply_markup=main_menu(is_admin),
         parse_mode="HTML")
 
-# МЕНЮ ПОМОЩь
-@bot.message_handler(commands=['help'])
-@authorize
-def send_help(message):
-    user_id = message.from_user.id
-    is_admin = user_id in ADMIN_IDS
-    user_states[message.chat.id] = "support"
-
-    bot.send_message(
-        message.chat.id,
-        Messages.HELP_PROMPT,
-        reply_markup=cancel_or_back_markup(for_admin=is_admin)
-    )
-
-#Хэндлер кнопки проверки трафика
-@bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
-def handle_check_traffic(message):
-    user_id = message.chat.id
-    key_id = db.get_user_key(user_id)
-
-    if not key_id:
-        bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
-        return
-
-    try:
-        # Получаем все данные из БД
-        user_data = db.get_user_data(user_id)
-        print("[DEBUG] user_data:", user_data)
-
-        key = outline.get_key_by_id(key_id, DEFAULT_SERVER_ID)
-
-        # Использовано всего
-        total_used_bytes = key.used or 0
-        total_used_gb = round(total_used_bytes / 1024**3, 2)
-
-        # Получаем точку отсчёта для месяца
-        start_bytes, start_date_str = db.get_traffic_reset_info(user_id)
-        start_bytes = start_bytes or 0
-        now = datetime.now()
-
-        # Обновляем точку отсчета, если первый запуск или месяц сменился
-        if not start_date_str:
-            db.set_traffic_reset_info(user_id, total_used_bytes)
-            used_this_month_gb = 0
-        else:
-            start_date = datetime.fromisoformat(start_date_str)
-            if start_date.month != now.month or start_date.year != now.year:
-                db.set_traffic_reset_info(user_id, total_used_bytes)
-                used_this_month_gb = 0
-            else:
-                delta = max(0, total_used_bytes - start_bytes)
-                used_this_month_gb = round(delta / 1024**3, 2)
-
-        # Считаем остаток
-        current_limit_gb = user_data.get("limit", 15)
-        remaining_gb = max(0, current_limit_gb - used_this_month_gb)
-
-        # PREMIUM
-        # PREMIUM
-        since_str = user_data.get("premium_since")
-        until_str = user_data.get("premium_until")
-
-        if user_data.get("isPremium") and since_str:
-            since = datetime.fromisoformat(since_str)
-            until = datetime.fromisoformat(until_str) if until_str else since + timedelta(days=31)
-            bot.send_message(
-                user_id,
-                PremiumMessages.TRAFFIC_INFO_WITH_PREMIUM.format(
-                    remaining=remaining_gb,
-                    used=used_this_month_gb,
-                    limit=current_limit_gb,
-                    total=total_used_gb,
-                    since=since.strftime('%d.%m.%Y'),
-                    until=until.strftime('%d.%m.%Y')
-                ),
-                parse_mode="HTML"
-            )
-        else:
-            bot.send_message(
-                user_id,
-                PremiumMessages.TRAFFIC_INFO.format(
-                    remaining=remaining_gb,
-                    used=used_this_month_gb,
-                    limit=current_limit_gb,
-                    total=total_used_gb
-                ),
-                parse_mode="HTML"
-            )
-
-    except Exception as e:
-        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
-        print(f"[ERROR] handle_check_traffic: {e}")
-
-# ADMIN - PANEL
-@bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
-def handle_admin_panel(message):
-    if message.from_user.id in ADMIN_IDS:
-        user_states[message.chat.id] = "admin_menu"  # <-- Добавляем это
-        bot.send_message(message.chat.id, "🔐 Админ-панель:",
-                         reply_markup=admin_menu())
-
-
-# PREMIUM Кнопка
+# HANDLER - PREMIUM Кнопка
 @bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
 def handle_premium(message):
     user_states[message.chat.id] = "premium_menu"
@@ -176,7 +72,25 @@ def handle_premium(message):
         parse_mode="HTML"
     )
 
-# Обработка кнопки "Сделать PREMIUM"
+# HANDLER - BUTTON_PAY_PREMIUM
+@bot.message_handler(func=lambda message: message.text == Buttons.BUY_PREMIUM)
+def handle_buy_premium(message):
+      bot.send_message(
+            message.chat.id,
+            PremiumMessages.PAYMENT_INFO,
+            reply_markup=premium_menu(),
+            parse_mode="HTML"
+        )
+
+# HANDLER - ADMIN - PANEL
+@bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
+def handle_admin_panel(message):
+    if message.from_user.id in ADMIN_IDS:
+        user_states[message.chat.id] = "admin_menu"  # <-- Добавляем это
+        bot.send_message(message.chat.id, "🔐 Админ-панель:",
+                         reply_markup=admin_menu())
+
+# HANDLER - MAKE_PREMIUM
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
 def handle_make_premium(message):
     admin_states[message.chat.id] = "awaiting_premium_id"
@@ -185,129 +99,8 @@ def handle_make_premium(message):
         AdminMessages.ENTER_USER_ID,
         reply_markup=cancel_or_back_markup(for_admin=True)
     )
-#HANDLER ADD DAYS PREMIUM
-@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_extend_data")
-def process_extend_premium(message):
-    if message.text == Buttons.BACK:
-        admin_states.pop(message.chat.id, None)
-        bot.send_message(
-            message.chat.id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=admin_menu()
-        )
-        return
 
-    try:
-        user_id, days = map(int, message.text.split())
-        if days <= 0:
-            raise ValueError
-        
-        # Получаем текущую дату активации
-        current_since = db.get_premium_date(user_id) or datetime.utcnow().isoformat()
-        since = datetime.fromisoformat(current_since)
-        until = since + timedelta(days=days)
-        new_limit_gb = round(PREMIUM_DATA_LIMIT_GB / 30 * days, 2)
-
-        # Обновляем БД
-        db.extend_premium(user_id, since.isoformat(), until.isoformat(), new_limit_gb)
-
-        # Обновляем лимит в Outline API
-        key_id = db.get_user_key(user_id)
-        if key_id:
-            new_limit_bytes = int(new_limit_gb * 1024 ** 3)
-            outline._set_access_key_data_limit(key_id, new_limit_bytes, DEFAULT_SERVER_ID)
-
-        bot.send_message(
-            message.chat.id,
-            f"✅ Премиум для пользователя {user_id} продлён на {days} дней\n"
-            f"Новый лимит трафика: {new_limit_gb:.2f} ГБ",
-            reply_markup=admin_menu()
-        )
-
-    except (ValueError, IndexError):
-        bot.send_message(
-            message.chat.id,
-            "❌ Неверный формат. Введите ID и дни через пробел (например: <code>123456 15</code>)",
-            parse_mode="HTML",
-            reply_markup=cancel_or_back_markup(for_admin=True)
-        )
-    except Exception as e:
-        bot.send_message(
-            message.chat.id,
-            f"⚠️ Ошибка: {str(e)}",
-            reply_markup=admin_menu()
-        )
-    finally:
-        admin_states.pop(message.chat.id, None)
-
-
-@bot.message_handler(func=lambda message: message.text == Buttons.EXTEND_PREMIUM)
-def handle_extend_premium(message):
-    admin_states[message.chat.id] = "awaiting_extend_data"
-    bot.send_message(
-        message.chat.id,
-        "Введите ID пользователя и количество дней через пробел (например: <code>123456 15</code>)",
-        parse_mode="HTML",
-        reply_markup=cancel_or_back_markup(for_admin=True)
-    )
-
-@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_extend_data")
-def process_extend_premium(message):
-    if message.text == Buttons.BACK:
-        admin_states.pop(message.chat.id, None)
-        bot.send_message(
-            message.chat.id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=admin_menu()
-        )
-        return
-
-    try:
-        user_id, days = map(int, message.text.split())
-        if days <= 0:
-            raise ValueError
-        
-        # Получаем текущую дату премиума
-        current_date = db.get_premium_date(user_id) or datetime.utcnow().isoformat()
-        
-        # Рассчитываем новую дату окончания
-        new_end_date = (datetime.fromisoformat(current_date) + timedelta(days=days)).isoformat()
-        
-        # Обновляем в БД
-# Сохраняем премиум-данные
-        db.activate_premium(user_id, current_date, new_end_date)
-        
-        # Обновляем лимит трафика
-        key_id = db.get_user_key(user_id)
-        if key_id:
-            daily_limit_gb = round(PREMIUM_DATA_LIMIT_GB / 30 * days, 2)
-            new_limit_bytes = int(daily_limit_gb * (1024 ** 3))
-            outline._set_access_key_data_limit(key_id, new_limit_bytes, DEFAULT_SERVER_ID)
-        
-        bot.send_message(
-            message.chat.id,
-            f"✅ Премиум для пользователя {user_id} продлён на {days} дней\n"
-            f"Новый лимит трафика: {daily_limit_gb:.2f} ГБ",
-            reply_markup=admin_menu()
-        )
-        
-    except (ValueError, IndexError):
-        bot.send_message(
-            message.chat.id,
-            "❌ Неверный формат. Введите ID и дни через пробел (например: <code>123456 15</code>)",
-            parse_mode="HTML",
-            reply_markup=cancel_or_back_markup(for_admin=True)
-        )
-    except Exception as e:
-        bot.send_message(
-            message.chat.id,
-            f"⚠️ Ошибка: {str(e)}",
-            reply_markup=admin_menu()
-        )
-    finally:
-        admin_states.pop(message.chat.id, None)
-
-# КНОПКА ПОСМОТРЕТЬ PREMIUM ПОЛЬЗОВАТЕЛЕЙ
+# HANDLER - ALL_PREMIUM_USER
 @bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
 def handle_view_premiums(message):
     premium_users = db.get_all_premium_users()  # Предполагаемая функция
@@ -320,67 +113,12 @@ def handle_view_premiums(message):
         bot.send_message(
             message.chat.id, "❗ Пока нет PREMIUM-пользователей.", reply_markup=admin_menu())
 
-
-@bot.message_handler(func=lambda message: message.text == Buttons.BACK)
-def handle_back(message):
-    user_id = message.chat.id
-    state = user_states.get(user_id)
-
-    if state == "premium_menu":
-        user_states.pop(user_id, None)
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(user_id in ADMIN_IDS)
-        )
-
-    elif state == "support_mode":
-        user_states.pop(user_id, None)
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(user_id in ADMIN_IDS)
-        )
-
-    elif admin_states.get(user_id) == "awaiting_premium_id":
-        admin_states.pop(user_id, None)
-        bot.send_message(
-            user_id,
-            "❌ Действие отменено.",
-            reply_markup=admin_menu()
-        )
-
-    elif state == "admin_menu":
-        user_states.pop(user_id, None)
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(user_id in ADMIN_IDS)
-        )
-
-    else:
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(user_id in ADMIN_IDS)
-        )
-
-
-# КНОПКА КУПИТЬ ПРЕМИУМ
-@bot.message_handler(func=lambda message: message.text == Buttons.BUY_PREMIUM)
-def handle_buy_premium(message):
-      bot.send_message(
-            message.chat.id,
-            PremiumMessages.PAYMENT_INFO,
-            reply_markup=premium_menu(),
-            parse_mode="HTML"
-        )
-
 @bot.message_handler(commands=['s'])
 @authorize
 def send_s_list(message):
     bot.send_message(message.chat.id, f.make_s_list())
 
+# HANDLER - SUPPORT_MENU
 @bot.message_handler(content_types=['text'])
 @authorize
 def answer(message):
@@ -436,12 +174,72 @@ def answer(message):
     else:
         bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu())
 
+# HANDLER - МЕНЮ ПОМОЩь
+@bot.message_handler(commands=['help'])
+@authorize
+def send_help(message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+    user_states[message.chat.id] = "support"
+
+    bot.send_message(
+        message.chat.id,
+        Messages.HELP_PROMPT,
+        reply_markup=cancel_or_back_markup(for_admin=is_admin)
+    )
+
+# HANDLER - BUTTON_BACK
+@bot.message_handler(func=lambda message: message.text == Buttons.BACK)
+def handle_back(message):
+    user_id = message.chat.id
+    state = user_states.get(user_id)
+
+    if state == "premium_menu":
+        user_states.pop(user_id, None)
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(user_id in ADMIN_IDS)
+        )
+
+    elif state == "support_mode":
+        user_states.pop(user_id, None)
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(user_id in ADMIN_IDS)
+        )
+
+    elif admin_states.get(user_id) == "awaiting_premium_id":
+        admin_states.pop(user_id, None)
+        bot.send_message(
+            user_id,
+            "❌ Действие отменено.",
+            reply_markup=admin_menu()
+        )
+
+    elif state == "admin_menu":
+        user_states.pop(user_id, None)
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(user_id in ADMIN_IDS)
+        )
+
+    else:
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(user_id in ADMIN_IDS)
+        )
+
+# HANDLER - SUPPORT MEDIA
 @bot.message_handler(content_types=['photo', 'document', 'voice', 'sticker'])
 def handle_support_media(message):
     if user_states.get(message.chat.id) == "support":
         send_to_support(message)
 
-
+# ------ UTIL def ------- #
 def set_help_mode(message):
     """Активирует режим обращения в поддержку"""
     user_states[message.chat.id] = "support"
@@ -451,7 +249,6 @@ def set_help_mode(message):
         Messages.HELP_PROMPT,
         reply_markup=cancel_or_back_markup(for_admin=False)
     )
-
 
 # --- CORE FUNCTIONS ---
 def _make_new_key(message, server_id: ServerId, key_name: str):
