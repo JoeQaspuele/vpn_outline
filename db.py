@@ -218,3 +218,13 @@ def extend_premium(user_id: int, new_end_date: str):
             'UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?',
             (new_end_date, user_id))
         conn.commit()
+        
+def init_user(user_id: int):
+    """Создает запись пользователя с дефолтными значениями"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT OR IGNORE INTO users (user_id, "used", "limit") VALUES (?, 0, 15)',
+            (user_id,)
+        )
+        conn.commit()
