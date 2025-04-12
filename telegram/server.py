@@ -421,97 +421,39 @@ def set_help_mode(message):
 
 # --- CORE FUNCTIONS ---
 def _make_new_key(message, server_id: ServerId, key_name: str):
-    """
-    Создает новый VPN-ключ или обрабатывает существующий ключ пользователя.
-
-    Логика работы:
-    1. Проверяет наличие старого ключа
-    2. Если ключ был удален - создает новый
-    3. Если ключ активен - показывает его пользователю
-    4. Если ключа нет - создает новый
-
-    Args:
-        message: Объект сообщения от пользователя
-        server_id: ID сервера Outline
-        key_name: Имя для нового ключа
-    """
     user_id = message.chat.id
     old_key_id = db.get_user_key(user_id)
 
-    # Обработка случая, когда у пользователя уже есть ключ
-    if old_key_id:
-        # Если ключ был помечен как удаленный
-        if db.is_key_deleted(old_key_id):
-            try:
-                # Шаг 1: Очищаем старые данные
+    try:
+        # Инициализируем пользователя если его нет
+        if not db.get_user_data(user_id):
+            db.init_user(user_id)
+
+        if old_key_id:
+            if db.is_key_deleted(old_key_id):
                 db.remove_user_key(user_id)
-
-                # Шаг 2: Создаем новый ключ с лимитом трафика
-                key = outline.get_new_key(
-                    key_name=key_name,
-                    server_id=server_id,
-                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
-                )
-
-                # Шаг 3: Сохраняем новый ключ
+                key = outline.get_new_key(key_name, server_id, DEFAULT_DATA_LIMIT_GB)
                 db.save_user_key(user_id, key.kid)
-                db.update_user_limits(user_id, 0, DEFAULT_DATA_LIMIT_GB)  # used=0, limit=15
-
-                # Шаг 4: Отправляем ключ пользователю
+                db.update_user_limits(user_id, used=0, limit=DEFAULT_DATA_LIMIT_GB)
                 _send_key(message, key, server_id)
-
-            except KeyCreationError:
-                _send_error_message(message, Errors.API_CREATION_FAILED)
-            except KeyRenamingError:
-                _send_error_message(message, Errors.API_RENAMING_FAILED)
-            except InvalidServerIdError:
-                bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
-
-        # Если ключ активен
+            else:
+                try:
+                    key = outline.get_key_by_id(old_key_id, server_id)
+                    bot.send_message(message.chat.id, Messages.key_info(key.access_url, is_new=False), parse_mode="HTML")
+                except KeyError:
+                    key = outline.get_new_key(key_name, server_id, DEFAULT_DATA_LIMIT_GB)
+                    db.save_user_key(user_id, key.kid)
+                    db.update_user_limits(user_id, used=0, limit=DEFAULT_DATA_LIMIT_GB)
+                    _send_key(message, key, server_id)
         else:
-            try:
-                # Пытаемся получить существующий ключ
-                key = outline.get_key_by_id(old_key_id, server_id)
-                bot.send_message(
-                    message.chat.id,
-                    Messages.key_info(key.access_url, is_new=False),
-                    parse_mode="HTML"
-                )
-            except KeyError:
-                # Если ключ не найден (например, удален вручную в Outline)
-                key = outline.get_new_key(
-                    key_name=key_name,
-                    server_id=server_id,
-                    data_limit_gb=DEFAULT_DATA_LIMIT_GB
-                )
-                db.save_user_key(user_id, key.kid)
-                db.update_user_limits(user_id, 0, DEFAULT_DATA_LIMIT_GB)  # used=0, limit=15
-
-                _send_key(message, key, server_id)
-            except Exception as e:
-                _send_error_message(message, Errors.API_FAIL)
-                monitoring.send_error(
-                    f"Key error: {str(e)}",
-                    message.from_user.username)
-
-    # Если у пользователя нет ключа
-    else:
-        try:
-            # Создаем полностью новый ключ
-            key = outline.get_new_key(
-                key_name=key_name,
-                server_id=server_id,
-                data_limit_gb=DEFAULT_DATA_LIMIT_GB
-            )
+            key = outline.get_new_key(key_name, server_id, DEFAULT_DATA_LIMIT_GB)
             db.save_user_key(user_id, key.kid)
+            db.update_user_limits(user_id, used=0, limit=DEFAULT_DATA_LIMIT_GB)
             _send_key(message, key, server_id)
 
-        except KeyCreationError:
-            _send_error_message(message, Errors.API_CREATION_FAILED)
-        except KeyRenamingError:
-            _send_error_message(message, Errors.API_RENAMING_FAILED)
-        except InvalidServerIdError:
-            bot.send_message(message.chat.id, Errors.INVALID_SERVER_ID)
+    except Exception as e:
+        _send_error_message(message, Errors.API_FAIL)
+        logging.error(f"Key creation error: {str(e)}")
 
 
 def _send_existing_key(message):
