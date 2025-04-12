@@ -185,48 +185,61 @@ def handle_make_premium(message):
         AdminMessages.ENTER_USER_ID,
         reply_markup=cancel_or_back_markup(for_admin=True)
     )
-
-@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
-def process_premium_user_id(message):
+#HANDLER ADD DAYS PREMIUM
+@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_extend_data")
+def process_extend_premium(message):
     if message.text == Buttons.BACK:
-         admin_states.pop(message.chat.id, None)
-         bot.send_message(
-         message.chat.id,
-         Messages.REQUEST_CANCELED,
-         reply_markup=main_menu(is_admin=True))
-         return
-
-    try:
-        user_id = int(message.text)
-        db.set_premium(user_id)
-
-        key_id = db.get_user_key(user_id)
-        if key_id:
-            limit_in_bytes = PREMIUM_DATA_LIMIT_GB * 1024**3
-            outline._set_access_key_data_limit(
-                key_id=key_id,
-                limit_in_bytes=limit_in_bytes,
-                server_id=DEFAULT_SERVER_ID
-            )
-
-        bot.send_message(
-            user_id,
-            PremiumMessages.PREMIUM_WELCOME,
-            parse_mode="HTML"
-        )
-
         admin_states.pop(message.chat.id, None)
         bot.send_message(
             message.chat.id,
-            AdminMessages.SUCCESS_SET_PREMIUM,
+            Messages.REQUEST_CANCELED,
             reply_markup=admin_menu()
         )
-    except ValueError:
+        return
+
+    try:
+        user_id, days = map(int, message.text.split())
+        if days <= 0:
+            raise ValueError
+        
+        # Получаем текущую дату активации
+        current_since = db.get_premium_date(user_id) or datetime.utcnow().isoformat()
+        since = datetime.fromisoformat(current_since)
+        until = since + timedelta(days=days)
+        new_limit_gb = round(PREMIUM_DATA_LIMIT_GB / 30 * days, 2)
+
+        # Обновляем БД
+        db.extend_premium(user_id, since.isoformat(), until.isoformat(), new_limit_gb)
+
+        # Обновляем лимит в Outline API
+        key_id = db.get_user_key(user_id)
+        if key_id:
+            new_limit_bytes = int(new_limit_gb * 1024 ** 3)
+            outline._set_access_key_data_limit(key_id, new_limit_bytes, DEFAULT_SERVER_ID)
+
         bot.send_message(
             message.chat.id,
-            AdminMessages.INVALID_ID,
+            f"✅ Премиум для пользователя {user_id} продлён на {days} дней\n"
+            f"Новый лимит трафика: {new_limit_gb:.2f} ГБ",
+            reply_markup=admin_menu()
+        )
+
+    except (ValueError, IndexError):
+        bot.send_message(
+            message.chat.id,
+            "❌ Неверный формат. Введите ID и дни через пробел (например: <code>123456 15</code>)",
+            parse_mode="HTML",
             reply_markup=cancel_or_back_markup(for_admin=True)
         )
+    except Exception as e:
+        bot.send_message(
+            message.chat.id,
+            f"⚠️ Ошибка: {str(e)}",
+            reply_markup=admin_menu()
+        )
+    finally:
+        admin_states.pop(message.chat.id, None)
+
 
 @bot.message_handler(func=lambda message: message.text == Buttons.EXTEND_PREMIUM)
 def handle_extend_premium(message):
