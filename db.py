@@ -213,12 +213,17 @@ def set_traffic_reset_info(user_id, start_bytes):
     conn.commit()
     conn.close()
 
-def extend_premium(user_id: int, new_end_date: str):
+def extend_premium(user_id: int, premium_since: str, premium_until: str, limit_gb: float):
+    """Продлевает премиум-статус и сохраняет дату окончания + лимит"""
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            'UPDATE users SET isPremium = 1, premium_until = ? WHERE user_id = ?',
-            (new_end_date, user_id)
+            '''
+            UPDATE users 
+            SET isPremium = 1, premium_since = ?, premium_until = ?, "limit" = ? 
+            WHERE user_id = ?
+            ''',
+            (premium_since, premium_until, limit_gb, user_id)
         )
         conn.commit()
 
