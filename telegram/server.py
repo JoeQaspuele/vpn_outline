@@ -120,7 +120,7 @@ def handle_check_traffic(message):
         current_limit_gb = user_data.get("limit", 15)
         remaining_gb = max(0, current_limit_gb - used_this_month_gb)
 
-        # PREMIUM
+
         # PREMIUM
         since_str = user_data.get("premium_since")
         until_str = user_data.get("premium_until")
