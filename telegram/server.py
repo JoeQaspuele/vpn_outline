@@ -17,7 +17,6 @@ from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServer
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
 import db
-from datetime import datetime, timedelta
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
