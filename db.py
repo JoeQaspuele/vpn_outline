@@ -89,42 +89,6 @@ def set_premium(user_id: int):
         cursor.execute('UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?', (premium_date, user_id))
         conn.commit()
 
-def check_premium_expiration():
-    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT user_id, premium_since FROM users WHERE isPremium = 1')
-        rows = cursor.fetchall()
-
-        for user_id, since_str in rows:
-            if since_str:
-                try:
-                    premium_date = datetime.fromisoformat(since_str)
-                    if datetime.utcnow() - premium_date > timedelta(days=PREMIUM_DURATION_DAYS):
-                        print(f"⏳ PREMIUM у пользователя {user_id} истёк. Сбрасываем.")
-                        cursor.execute('UPDATE users SET isPremium = 0, premium_since = NULL WHERE user_id = ?', (user_id,))
-
-                        # Снижаем лимит до 15 ГБ
-                        key = get_user_key(user_id)
-                        if key:
-                            #from outline import api
-                            api._set_access_key_data_limit(
-                                key_id=key,
-                                limit_in_bytes=FREE_DATA_LIMIT_GB * 1024**3,
-                                server_id=DEFAULT_SERVER_ID
-                            )
-                except Exception as e:
-                    print(f"⚠️ Ошибка при проверке премиума пользователя {user_id}: {e}")
-
-        conn.commit()
-
-def get_premium_date(user_id: int) -> str | None:
-    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT premium_since FROM users WHERE user_id = ?', (user_id,))
-        row = cursor.fetchone()
-        return row[0] if row else None
-
-
 def get_all_premium_users():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -213,58 +177,4 @@ def set_traffic_reset_info(user_id, start_bytes):
     conn.commit()
     conn.close()
 
-def extend_premium(user_id: int, premium_since: str, premium_until: str, limit_gb: float):
-    """Продлевает премиум-статус и сохраняет дату окончания + лимит"""
-    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            '''
-            UPDATE users 
-            SET isPremium = 1, premium_since = ?, premium_until = ?, "limit" = ? 
-            WHERE user_id = ?
-            ''',
-            (premium_since, premium_until, limit_gb, user_id)
-        )
-        conn.commit()
 
-
-def init_user(user_id: int):
-    """Создает запись пользователя с дефолтными значениями"""
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            'INSERT OR IGNORE INTO users (user_id, "used", "limit") VALUES (?, 0, 15)',
-            (user_id,)
-        )
-        conn.commit()
-
-def get_premium_dates(user_id: int) -> tuple[str | None, str | None]:
-    """Возвращает дату начала и окончания премиума"""
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT premium_since, premium_until FROM users WHERE user_id = ?', (user_id,))
-        row = cursor.fetchone()
-        return row if row else (None, None)
-
-def activate_premium(user_id: int, since_date: str, until_date: str):
-    """Активация премиума с датой начала и окончания"""
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        # Сначала получим текущую дату
-        cursor.execute("SELECT premium_since FROM users WHERE user_id = ?", (user_id,))
-        row = cursor.fetchone()
-        existing_since = row[0] if row else None
-
-        # Если уже активирован, только продлеваем
-        if existing_since:
-            cursor.execute(
-                "UPDATE users SET isPremium = 1 WHERE user_id = ?",
-                (user_id,)
-            )
-        else:
-            # Устанавливаем дату активации
-            cursor.execute(
-                "UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?",
-                (since_date, user_id)
-            )
-        conn.commit()
