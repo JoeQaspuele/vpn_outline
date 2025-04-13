@@ -144,11 +144,11 @@ def handle_buy_premium(message):
 # HANDLER - ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
-    if message.from_user.id in ADMIN_IDS:
-        user_states[message.chat.id] = "admin_menu"  # <-- Добавляем это
-        bot.send_message(message.chat.id, "🔐 Админ-панель:",
-                         reply_markup=admin_menu())
-
+    user_id = message.chat.id
+    if user_id in ADMIN_IDS:
+        user_states[user_id] = "admin_menu"
+        bot.send_message(user_id, "🔐 Админ-панель:", reply_markup=admin_menu())
+        
 # HANDLER - MAKE_PREMIUM
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
 def handle_make_premium(message):
@@ -351,9 +351,9 @@ def answer(message):
 @bot.message_handler(commands=['help'])
 @authorize
 def send_help(message):
-    user_id = message.from_user.id
+    user_id = message.chat.id
     is_admin = user_id in ADMIN_IDS
-    user_states[message.chat.id] = "support"
+    user_states[user_id] = "support_mode"
 
     bot.send_message(
         message.chat.id,
@@ -368,46 +368,24 @@ def handle_back(message):
     state = user_states.get(user_id)
     is_admin = user_id in ADMIN_IDS
 
-    if state == "premium_menu":
-        user_states[user_id] = "admin_menu" if is_admin else None
+    # Удаляем текущее состояние
+    user_states.pop(user_id, None)
+    admin_states.pop(user_id, None)
+
+    if state in ("premium_menu", "support", "support_mode", "admin_menu"):
+        # Возврат в главное меню
         bot.send_message(
             user_id,
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(is_admin)
         )
-
-    elif state == "support_mode":
-        user_states[user_id] = "admin_menu" if is_admin else None
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(is_admin)
-        )
-
-    elif admin_states.get(user_id) == "awaiting_premium_id":
-        admin_states.pop(user_id, None)
-        user_states[user_id] = "admin_menu"
-        bot.send_message(
-            user_id,
-            "❌ Действие отменено.",
-            reply_markup=admin_menu()
-        )
-
-    elif state == "admin_menu":
-        # Здесь не удаляем флаг админа
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(is_admin)
-        )
-
     else:
-        user_states.pop(user_id, None)
         bot.send_message(
             user_id,
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(is_admin)
         )
+
 
 # HANDLER - SUPPORT MEDIA
 @bot.message_handler(content_types=['photo', 'document', 'voice', 'sticker'])
@@ -418,13 +396,16 @@ def handle_support_media(message):
 # ------ UTIL def ------- #
 def set_help_mode(message):
     """Активирует режим обращения в поддержку"""
-    user_states[message.chat.id] = "support"
+    user_id = message.chat.id
+    is_admin = user_id in ADMIN_IDS
+    user_states[user_id] = "support_mode"
 
     bot.send_message(
-        message.chat.id,
+        user_id,
         Messages.HELP_PROMPT,
-        reply_markup=cancel_or_back_markup(for_admin=False)
+        reply_markup=cancel_or_back_markup(for_admin=is_admin)
     )
+
 
 # --- CORE FUNCTIONS ---
 def _make_new_key(message, server_id: ServerId, key_name: str):
