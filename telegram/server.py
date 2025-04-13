@@ -17,6 +17,7 @@ from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServer
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
 import db
+from datetime import datetime, timedelta
 
 assert BOT_API_TOKEN is not None
 bot = telebot.TeleBot(BOT_API_TOKEN, parse_mode='HTML')
@@ -59,66 +60,6 @@ def send_welcome(message):
         Messages.WELCOME,
         reply_markup=main_menu(is_admin),
         parse_mode="HTML")
-
-
-# HANDLER _ CHEK
-@bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
-def handle_check_traffic(message):
-    user_id = message.chat.id
-    key_id = db.get_user_key(user_id)
-
-    if not key_id:
-        bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
-        return
-
-    try:
-        user_data = db.get_user_data(user_id)
-        print(f"[DEBUG] user_data: {user_data}")
-
-        limit = user_data.get("limit", 15)
-        used_monthly = user_data.get("monthly_gb", 0)
-        total_used_bytes = user_data.get("total_bytes", 0)
-
-        remaining = max(0, round(limit - used_monthly, 2))
-        used = round(used_monthly, 2)
-        total_used = round(total_used_bytes / 1024**3, 2)  # байты → ГБ
-
-        # Формируем сообщение
-        if user_data.get("isPremium"):
-            since = user_data.get("premium_since")
-            until = user_data.get("premium_until")
-
-            # Даты для текста
-            since_text = datetime.fromisoformat(since).strftime('%d.%m.%Y') if since else "неизвестно"
-            until_text = datetime.fromisoformat(until).strftime('%d.%m.%Y') if until else "неизвестно"
-
-            bot.send_message(
-                user_id,
-                PremiumMessages.TRAFFIC_INFO_WITH_PREMIUM.format(
-                    remaining=remaining,
-                    used=used,
-                    limit=limit,
-                    total=total_used,
-                    since=since_text,
-                    until=until_text
-                ),
-                parse_mode="HTML"
-            )
-        else:
-            bot.send_message(
-                user_id,
-                PremiumMessages.TRAFFIC_INFO.format(
-                    remaining=remaining,
-                    used=used,
-                    limit=limit,
-                    total=total_used
-                ),
-                parse_mode="HTML"
-            )
-
-    except Exception as e:
-        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
-        print(f"[ERROR] handle_check_traffic: {e}")
 
 @bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
 def handle_check_traffic(message):
@@ -203,11 +144,10 @@ def handle_buy_premium(message):
 # HANDLER - ADMIN - PANEL
 @bot.message_handler(func=lambda message: message.text == Buttons.ADMIN)
 def handle_admin_panel(message):
-    user_id = message.chat.id
-    if user_id in ADMIN_IDS:
-        user_states[user_id] = "admin_menu"
-        bot.send_message(user_id, "🔐 Админ-панель:", reply_markup=admin_menu())
-
+    if message.from_user.id in ADMIN_IDS:
+        user_states[message.chat.id] = "admin_menu"  # <-- Добавляем это
+        bot.send_message(message.chat.id, "🔐 Админ-панель:",
+                         reply_markup=admin_menu())
 
 # HANDLER - MAKE_PREMIUM
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
@@ -218,7 +158,7 @@ def handle_make_premium(message):
         AdminMessages.ENTER_USER_ID,
         reply_markup=cancel_or_back_markup(for_admin=True)
     )
-
+# HANDLER - MAKE_PREMIUM2
 @bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
 def process_premium_user_id(message):
     if message.text == Buttons.BACK:
@@ -271,16 +211,6 @@ def process_premium_user_id(message):
         )
     finally:
         admin_states.pop(message.chat.id, None)
-        @bot.message_handler(func=lambda message: message.text == Buttons.EXTEND_PREMIUM)
-# HANDLER ADD DAYS PREMIUM (начало установки)
-def handle_extend_premium(message):
-    admin_states[message.chat.id] = "awaiting_extend_data"
-    bot.send_message(
-        message.chat.id,
-        "Введите ID пользователя и количество дней через пробел (например: <code>123456 10</code>)",
-        parse_mode="HTML",
-        reply_markup=cancel_or_back_markup(for_admin=True)
-    )
 
 # HANDLER ADD DAYS PREMIUM (продолжение)
 @bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_extend_data")
@@ -331,6 +261,16 @@ def process_extend_premium(message):
         )
     finally:
         admin_states.pop(message.chat.id, None)
+
+@bot.message_handler(func=lambda message: message.text == Buttons.EXTEND_PREMIUM)
+def handle_extend_premium(message):
+    admin_states[message.chat.id] = "awaiting_extend_data"
+    bot.send_message(
+        message.chat.id,
+        "Введите ID пользователя и количество дней через пробел (например: <code>123456 10</code>)",
+        parse_mode="HTML",
+        reply_markup=cancel_or_back_markup(for_admin=True)
+    )
 
 
 # HANDLER - ALL_PREMIUM_USER
@@ -413,7 +353,7 @@ def answer(message):
 def send_help(message):
     user_id = message.from_user.id
     is_admin = user_id in ADMIN_IDS
-    user_states[user_id] = "support_mode"
+    user_states[message.chat.id] = "support"
 
     bot.send_message(
         message.chat.id,
@@ -428,25 +368,46 @@ def handle_back(message):
     state = user_states.get(user_id)
     is_admin = user_id in ADMIN_IDS
 
-    # Удаляем текущее состояние
-    user_states.pop(user_id, None)
-    admin_states.pop(user_id, None)
-
-    if state in ("premium_menu", "support", "support_mode", "admin_menu"):
-        # Возврат в главное меню
+    if state == "premium_menu":
+        user_states[user_id] = "admin_menu" if is_admin else None
         bot.send_message(
             user_id,
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(is_admin)
         )
+
+    elif state == "support_mode":
+        user_states[user_id] = "admin_menu" if is_admin else None
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(is_admin)
+        )
+
+    elif admin_states.get(user_id) == "awaiting_premium_id":
+        admin_states.pop(user_id, None)
+        user_states[user_id] = "admin_menu"
+        bot.send_message(
+            user_id,
+            "❌ Действие отменено.",
+            reply_markup=admin_menu()
+        )
+
+    elif state == "admin_menu":
+        # Здесь не удаляем флаг админа
+        bot.send_message(
+            user_id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=main_menu(is_admin)
+        )
+
     else:
+        user_states.pop(user_id, None)
         bot.send_message(
             user_id,
             Messages.REQUEST_CANCELED,
             reply_markup=main_menu(is_admin)
         )
-
-
 
 # HANDLER - SUPPORT MEDIA
 @bot.message_handler(content_types=['photo', 'document', 'voice', 'sticker'])
@@ -457,16 +418,13 @@ def handle_support_media(message):
 # ------ UTIL def ------- #
 def set_help_mode(message):
     """Активирует режим обращения в поддержку"""
-    user_id = message.chat.id
-    is_admin = user_id in ADMIN_IDS
-    user_states[user_id] = "support_mode"
+    user_states[message.chat.id] = "support"
 
     bot.send_message(
-        user_id,
+        message.chat.id,
         Messages.HELP_PROMPT,
-        reply_markup=cancel_or_back_markup(for_admin=is_admin)
+        reply_markup=cancel_or_back_markup(for_admin=False)
     )
-
 
 # --- CORE FUNCTIONS ---
 def _make_new_key(message, server_id: ServerId, key_name: str):
