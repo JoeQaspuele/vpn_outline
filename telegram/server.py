@@ -99,6 +99,120 @@ def handle_make_premium(message):
         reply_markup=cancel_or_back_markup(for_admin=True)
     )
 
+@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_premium_id")
+def process_premium_user_id(message):
+    if message.text == Buttons.BACK:
+        admin_states.pop(message.chat.id, None)
+        bot.send_message(
+            message.chat.id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=admin_menu()
+        )
+        return
+
+    try:
+        user_id_str, days_str = message.text.strip().split()
+        user_id = int(user_id_str)
+        days = int(days_str)
+
+        if days <= 0:
+            raise ValueError("Количество дней должно быть положительным")
+
+        # Устанавливаем премиум и получаем лимит
+        new_limit_gb = db.set_premium(user_id, days)
+
+        # Устанавливаем лимит в Outline API
+        key_id = db.get_user_key(user_id)
+        if key_id:
+            from settings import DEFAULT_SERVER_ID
+            from outline.api import _set_access_key_data_limit
+
+            limit_bytes = int(new_limit_gb * 1024 ** 3)
+            _set_access_key_data_limit(key_id, limit_bytes, DEFAULT_SERVER_ID)
+
+        bot.send_message(
+            message.chat.id,
+            f"✅ Пользователь {user_id} получил PREMIUM на {days} дней.\n"
+            f"Установленный лимит: {new_limit_gb:.2f} ГБ",
+            reply_markup=admin_menu()
+        )
+    except ValueError:
+        bot.send_message(
+            message.chat.id,
+            "❌ Введите ID и количество дней через пробел (например: <code>123456 30</code>)",
+            parse_mode="HTML",
+            reply_markup=cancel_or_back_markup(for_admin=True)
+        )
+    except Exception as e:
+        bot.send_message(
+            message.chat.id,
+            f"⚠️ Ошибка: {e}",
+            reply_markup=admin_menu()
+        )
+    finally:
+        admin_states.pop(message.chat.id, None)
+        @bot.message_handler(func=lambda message: message.text == Buttons.EXTEND_PREMIUM)
+# HANDLER ADD DAYS PREMIUM (начало установки)
+def handle_extend_premium(message):
+    admin_states[message.chat.id] = "awaiting_extend_data"
+    bot.send_message(
+        message.chat.id,
+        "Введите ID пользователя и количество дней через пробел (например: <code>123456 10</code>)",
+        parse_mode="HTML",
+        reply_markup=cancel_or_back_markup(for_admin=True)
+    )
+
+# HANDLER ADD DAYS PREMIUM (продолжение)
+@bot.message_handler(func=lambda message: admin_states.get(message.chat.id) == "awaiting_extend_data")
+def process_extend_premium(message):
+    if message.text == Buttons.BACK:
+        admin_states.pop(message.chat.id, None)
+        bot.send_message(
+            message.chat.id,
+            Messages.REQUEST_CANCELED,
+            reply_markup=admin_menu()
+        )
+        return
+
+    try:
+        user_id_str, days_str = message.text.strip().split()
+        user_id = int(user_id_str)
+        days = int(days_str)
+
+        if days <= 0:
+            raise ValueError("Количество дней должно быть положительным")
+
+        # Продлеваем премиум и получаем добавочный лимит
+        added_limit_gb = db.extend_premium(user_id, days)
+
+        # Обновляем лимит в Outline API
+        key_id = db.get_user_key(user_id)
+        if key_id:
+            from settings import DEFAULT_SERVER_ID
+            from outline.api import _set_access_key_data_limit
+
+            # Получаем полный лимит после обновления из БД
+            updated = db.get_user_data(user_id)
+            new_total_limit = updated['limit']
+            _set_access_key_data_limit(key_id, int(new_total_limit * 1024**3), DEFAULT_SERVER_ID)
+
+        bot.send_message(
+            message.chat.id,
+            f"✅ Продлил PREMIUM на {days} дней для пользователя {user_id}\n"
+            f"Добавлено: {added_limit_gb} ГБ трафика\n"
+            f"📅 Новая дата окончания: {updated['premium_until'][:10]}",
+            reply_markup=admin_menu()
+        )
+    except Exception as e:
+        bot.send_message(
+            message.chat.id,
+            f"⚠️ Ошибка: {str(e)}",
+            reply_markup=admin_menu()
+        )
+    finally:
+        admin_states.pop(message.chat.id, None)
+
+
 # HANDLER - ALL_PREMIUM_USER
 @bot.message_handler(func=lambda message: message.text == Buttons.VIEW_PREMIUMS and message.chat.id in ADMIN_IDS)
 def handle_view_premiums(message):
