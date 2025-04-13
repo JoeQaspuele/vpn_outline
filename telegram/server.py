@@ -60,6 +60,125 @@ def send_welcome(message):
         reply_markup=main_menu(is_admin),
         parse_mode="HTML")
 
+
+# HANDLER _ CHEK
+@bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
+def handle_check_traffic(message):
+    user_id = message.chat.id
+    key_id = db.get_user_key(user_id)
+
+    if not key_id:
+        bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
+        return
+
+    try:
+        user_data = db.get_user_data(user_id)
+        print(f"[DEBUG] user_data: {user_data}")
+
+        limit = user_data.get("limit", 15)
+        used_monthly = user_data.get("monthly_gb", 0)
+        total_used_bytes = user_data.get("total_bytes", 0)
+
+        remaining = max(0, round(limit - used_monthly, 2))
+        used = round(used_monthly, 2)
+        total_used = round(total_used_bytes / 1024**3, 2)  # байты → ГБ
+
+        # Формируем сообщение
+        if user_data.get("isPremium"):
+            since = user_data.get("premium_since")
+            until = user_data.get("premium_until")
+
+            # Даты для текста
+            since_text = datetime.fromisoformat(since).strftime('%d.%m.%Y') if since else "неизвестно"
+            until_text = datetime.fromisoformat(until).strftime('%d.%m.%Y') if until else "неизвестно"
+
+            bot.send_message(
+                user_id,
+                PremiumMessages.TRAFFIC_INFO_WITH_PREMIUM.format(
+                    remaining=remaining,
+                    used=used,
+                    limit=limit,
+                    total=total_used,
+                    since=since_text,
+                    until=until_text
+                ),
+                parse_mode="HTML"
+            )
+        else:
+            bot.send_message(
+                user_id,
+                PremiumMessages.TRAFFIC_INFO.format(
+                    remaining=remaining,
+                    used=used,
+                    limit=limit,
+                    total=total_used
+                ),
+                parse_mode="HTML"
+            )
+
+    except Exception as e:
+        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
+        print(f"[ERROR] handle_check_traffic: {e}")
+
+@bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
+def handle_check_traffic(message):
+    user_id = message.chat.id
+    key_id = db.get_user_key(user_id)
+
+    if not key_id:
+        bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
+        return
+
+    try:
+        user_data = db.get_user_data(user_id)
+        print(f"[DEBUG] user_data: {user_data}")
+
+        limit = user_data.get("limit", 15)
+        used_monthly = user_data.get("monthly_gb", 0)
+        total_used_bytes = user_data.get("total_bytes", 0)
+
+        remaining = max(0, round(limit - used_monthly, 2))
+        used = round(used_monthly, 2)
+        total_used = round(total_used_bytes / 1024**3, 2)  # байты → ГБ
+
+        # Формируем сообщение
+        if user_data.get("isPremium"):
+            since = user_data.get("premium_since")
+            until = user_data.get("premium_until")
+
+            # Даты для текста
+            since_text = datetime.fromisoformat(since).strftime('%d.%m.%Y') if since else "неизвестно"
+            until_text = datetime.fromisoformat(until).strftime('%d.%m.%Y') if until else "неизвестно"
+
+            bot.send_message(
+                user_id,
+                PremiumMessages.TRAFFIC_INFO_WITH_PREMIUM.format(
+                    remaining=remaining,
+                    used=used,
+                    limit=limit,
+                    total=total_used,
+                    since=since_text,
+                    until=until_text
+                ),
+                parse_mode="HTML"
+            )
+        else:
+            bot.send_message(
+                user_id,
+                PremiumMessages.TRAFFIC_INFO.format(
+                    remaining=remaining,
+                    used=used,
+                    limit=limit,
+                    total=total_used
+                ),
+                parse_mode="HTML"
+            )
+
+    except Exception as e:
+        bot.send_message(user_id, f"⚠️ Ошибка при получении трафика: {e}")
+        print(f"[ERROR] handle_check_traffic: {e}")
+
+
 # HANDLER - PREMIUM Кнопка
 @bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
 def handle_premium(message):
