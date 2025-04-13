@@ -158,7 +158,17 @@ def get_user_data(user_id: int) -> dict:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT "limit", "used", isPremium, traffic_start_bytes, traffic_start_date, premium_since, premium_until
+            SELECT 
+                "limit", 
+                "used", 
+                isPremium, 
+                traffic_start_bytes, 
+                traffic_start_date, 
+                premium_since, 
+                premium_until,
+                total_bytes,
+                monthly_gb,
+                total_bytes_days
             FROM users
             WHERE user_id = ?
         ''', (user_id,))
@@ -171,8 +181,12 @@ def get_user_data(user_id: int) -> dict:
             'traffic_start_bytes': row[3] if row and row[3] is not None else 0,
             'traffic_start_date': row[4] if row else None,
             'premium_since': row[5] if row else None,
-            'premium_until': row[6] if row else None
+            'premium_until': row[6] if row else None,
+            'total_bytes': row[7] if row else 0,
+            'monthly_gb': row[8] if row else 0,
+            'total_bytes_days': row[9] if row else 0
         } if row else None
+
 
 
 # Получить дату и байты начала месяца
