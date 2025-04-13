@@ -81,7 +81,8 @@ def remove_key(user_id: int):
         cursor = conn.cursor()
         cursor.execute('DELETE FROM user_keys WHERE user_id = ?', (user_id,))
         conn.commit()
-
+        
+# Сделать премиум пользователя
 def set_premium(user_id: int):
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         cursor = conn.cursor()
@@ -89,6 +90,7 @@ def set_premium(user_id: int):
         cursor.execute('UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?', (premium_date, user_id))
         conn.commit()
 
+# Получить всех премиум пользователей
 def get_all_premium_users():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
