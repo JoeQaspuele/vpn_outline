@@ -1,5 +1,5 @@
 from db import get_all_user_ids, update_traffic_metrics
-from api import get_traffic_for_key
+from outline.api import get_traffic_for_key
 from settings import DEFAULT_SERVER_ID
 from datetime import datetime
 import logging
