@@ -176,5 +176,33 @@ def set_traffic_reset_info(user_id, start_bytes):
     )
     conn.commit()
     conn.close()
+    
+# ЕЖЕСУТОЧНАЯ ПРОВЕРКА ПОЛЬЗОВАТЕЛЯ НА ОКОНЧАНИЕ ПРЕМИУМА
+def check_premium_expiration():
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id, premium_since FROM users WHERE isPremium = 1')
+        rows = cursor.fetchall()
 
+        for user_id, since_str in rows:
+            if since_str:
+                try:
+                    premium_date = datetime.fromisoformat(since_str)
+                    if datetime.utcnow() - premium_date > timedelta(days=PREMIUM_DURATION_DAYS):
+                        print(f"⏳ PREMIUM у пользователя {user_id} истёк. Сбрасываем.")
+                        cursor.execute('UPDATE users SET isPremium = 0, premium_since = NULL WHERE user_id = ?', (user_id,))
+
+                        # Снижаем лимит до 15 ГБ
+                        key = get_user_key(user_id)
+                        if key:
+                            #from outline import api
+                            api._set_access_key_data_limit(
+                                key_id=key,
+                                limit_in_bytes=FREE_DATA_LIMIT_GB * 1024**3,
+                                server_id=DEFAULT_SERVER_ID
+                            )
+                except Exception as e:
+                    print(f"⚠️ Ошибка при проверке премиума пользователя {user_id}: {e}")
+
+        conn.commit()
 
