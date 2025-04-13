@@ -4,6 +4,7 @@ from outline import api
 from datetime import datetime, timedelta
 from settings import DEFAULT_SERVER_ID
 
+
 PREMIUM_DURATION_DAYS = 31
 FREE_DATA_LIMIT_GB = 15
 DB_PATH = 'users.db'
@@ -82,13 +83,30 @@ def remove_key(user_id: int):
         cursor.execute('DELETE FROM user_keys WHERE user_id = ?', (user_id,))
         conn.commit()
         
-# Сделать премиум пользователя
-def set_premium(user_id: int):
+# Сделать премиум пользователя (НОВОЕ)
+def set_premium(user_id: int, days: int):
+    now = datetime.utcnow()
+    since = now.isoformat()
+    until = (now + timedelta(days=days)).isoformat()
+    new_limit_gb = round((50 / 30) * days, 2)
+
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         cursor = conn.cursor()
-        premium_date = datetime.utcnow().isoformat()
-        cursor.execute('UPDATE users SET isPremium = 1, premium_since = ? WHERE user_id = ?', (premium_date, user_id))
+        cursor.execute('''
+            UPDATE users
+            SET isPremium = 1,
+                premium_since = ?,
+                premium_until = ?,
+                "limit" = ?,
+                "used" = 0,
+                traffic_start_bytes = 0,
+                traffic_start_date = ?
+            WHERE user_id = ?
+        ''', (since, until, int(new_limit_gb), since, user_id))
         conn.commit()
+
+    return new_limit_gb  # чтобы потом сразу передать в Outline API
+
 
 # Получить всех премиум пользователей
 def get_all_premium_users():
