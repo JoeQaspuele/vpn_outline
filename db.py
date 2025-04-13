@@ -239,4 +239,48 @@ def check_premium_expiration():
                     print(f"⚠️ Ошибка при проверке премиума пользователя {user_id}: {e}")
 
         conn.commit()
+        
+# НИЖЕ КОД ОБНОВЛЕНИЕ МЕТРИК ДЛЯ CRON
+# Получение всех user_id + ключа
+def get_all_user_ids() -> list[tuple[int, str]]:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, key_name FROM users")
+        return cursor.fetchall()
+
+# ФУНКЦИЯ ОБНОВЛЕНИЯ МЕТРИК
+def update_traffic_metrics(user_id: int, current_total_bytes: int):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT total_bytes, traffic_start_bytes FROM users WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        old_total = row[0] if row else 0
+        start_bytes = row[1] if row else 0
+
+        # Считаем сколько потратил за сутки
+        delta = max(0, current_total_bytes - start_bytes)
+
+        # Если первый запуск — инициализация
+        if old_total == 0:
+            cursor.execute('''
+                UPDATE users
+                SET total_bytes = ?, traffic_start_bytes = ?, total_bytes_days = ?, monthly_gb = ?
+                WHERE user_id = ?
+            ''', (current_total_bytes, current_total_bytes, delta, delta, user_id))
+        else:
+            cursor.execute('''
+                UPDATE users
+                SET total_bytes = ?, total_bytes_days = ?, monthly_gb = monthly_gb + ?
+                WHERE user_id = ?
+            ''', (current_total_bytes, delta, delta, user_id))
+
+        conn.commit()
+        
+# Сброс monthly_gb в конце месяца
+def reset_monthly_usage():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET monthly_gb = 0')
+        conn.commit()
+
 
