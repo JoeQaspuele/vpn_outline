@@ -123,13 +123,16 @@ def handle_check_traffic(message):
 # HANDLER - PREMIUM Кнопка
 @bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
 def handle_premium(message):
-    user_states[message.chat.id] = "premium_menu"
+    user_id = message.chat.id
+    user_states[user_id] = "premium_menu"
+
     bot.send_message(
-        message.chat.id,
+        user_id,
         PremiumMessages.DESCRIPTION,
         reply_markup=premium_menu(),
         parse_mode="HTML"
     )
+
 
 # HANDLER - BUTTON_PAY_PREMIUM
 @bot.message_handler(func=lambda message: message.text == Buttons.BUY_PREMIUM)
@@ -148,6 +151,7 @@ def handle_admin_panel(message):
     if user_id in ADMIN_IDS:
         user_states[user_id] = "admin_menu"
         bot.send_message(user_id, "🔐 Админ-панель:", reply_markup=admin_menu())
+
         
 # HANDLER - MAKE_PREMIUM
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
@@ -345,7 +349,10 @@ def answer(message):
     elif text in command_handlers:
         command_handlers[text](message)
     else:
-        bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu())
+       is_admin = chat_id in ADMIN_IDS
+       bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu(is_admin))
+         
+
 
 # HANDLER - МЕНЮ ПОМОЩь
 @bot.message_handler(commands=['help'])
@@ -365,26 +372,18 @@ def send_help(message):
 @bot.message_handler(func=lambda message: message.text == Buttons.BACK)
 def handle_back(message):
     user_id = message.chat.id
-    state = user_states.get(user_id)
     is_admin = user_id in ADMIN_IDS
 
-    # Удаляем текущее состояние
+    # Удаляем состояния
     user_states.pop(user_id, None)
     admin_states.pop(user_id, None)
 
-    if state in ("premium_menu", "support", "support_mode", "admin_menu"):
-        # Возврат в главное меню
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(is_admin)
-        )
-    else:
-        bot.send_message(
-            user_id,
-            Messages.REQUEST_CANCELED,
-            reply_markup=main_menu(is_admin)
-        )
+    # Возврат в главное меню
+    bot.send_message(
+        user_id,
+        Messages.REQUEST_CANCELED,
+        reply_markup=main_menu(is_admin)
+    )
 
 
 # HANDLER - SUPPORT MEDIA
