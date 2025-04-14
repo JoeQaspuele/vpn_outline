@@ -27,7 +27,7 @@ class Messages:
     def key_info(access_url: str, is_new: bool = True) -> str:
         action = "создан" if is_new else "уже есть"
         return f"""
-        Ваш ключ VPN ({action}):
+        Ваш ключ к Outline ({action}):
         <code>{access_url}</code>
         """
 
