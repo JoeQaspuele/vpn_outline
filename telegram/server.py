@@ -296,22 +296,28 @@ def send_s_list(message):
     bot.send_message(message.chat.id, f.make_s_list())
 
 # HANDLER - SUPPORT_MENU
-@bot.message_handler(content_types=['text'])
+@bot.message_handler(content_types=['text', 'photo', 'document', 'voice', 'sticker'])
 @authorize
 def answer(message):
-    text = message.text.strip()
     chat_id = message.chat.id
+    user_id = message.from_user.id
+    text = message.text.strip() if message.text else None
+    is_admin = user_id in ADMIN_IDS
 
     # === Режим поддержки ===
-    if user_states.get(chat_id) == "support":
+    if user_states.get(chat_id) == "support_mode":
         if text == Buttons.CANCEL:
             user_states.pop(chat_id, None)
-            bot.send_message(chat_id, Messages.REQUEST_CANCELED, reply_markup=main_menu())
+            bot.send_message(
+                chat_id,
+                Messages.REQUEST_CANCELED,
+                reply_markup=main_menu(is_admin)
+            )
         else:
             send_to_support(message)
         return
 
-    # === Режим установки премиума (теперь через admin_states) ===
+    # === Режим установки премиума (через admin_states) ===
     if admin_states.get(chat_id) == "awaiting_premium_id":
         if text == Buttons.BACK:
             admin_states.pop(chat_id, None)
@@ -343,15 +349,18 @@ def answer(message):
         Buttons.DONATE: send_support_message,
     }
 
-    if text.startswith("/newkey"):
+    if text and text.startswith("/newkey"):
         server_id, key_name = _parse_the_command(message)
         _make_new_key(message, server_id, key_name)
     elif text in command_handlers:
         command_handlers[text](message)
     else:
-       is_admin = chat_id in ADMIN_IDS
-       bot.send_message(chat_id, Errors.UNKNOWN_COMMAND, reply_markup=main_menu(is_admin))
-         
+        bot.send_message(
+            chat_id,
+            Errors.UNKNOWN_COMMAND,
+            reply_markup=main_menu(is_admin)
+        )
+
 
 
 # HANDLER - МЕНЮ ПОМОЩь
@@ -385,67 +394,6 @@ def handle_back(message):
         reply_markup=main_menu(is_admin)
     )
 
-@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == "support_mode", content_types=['text', 'photo', 'document', 'voice', 'sticker'])
-def handle_support_message(message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    username = message.from_user.username
-    is_admin = user_id in ADMIN_IDS
-
-    user_link = (
-        f'<a href="https://t.me/{username}">пользователя</a>'
-        if username
-        else f'<a href="tg://user?id={user_id}">пользователя</a>'
-    )
-
-    try:
-        if message.text:
-            support_text = f"📩 Новый запрос от {user_link}:\n\n{message.text}"
-            bot.send_message(245413138, support_text, parse_mode="HTML")
-
-        elif message.photo:
-            photo = message.photo[-1]
-            caption = f"📸 Фото от {user_link}"
-            if message.caption:
-                caption += f"\n\n{message.caption}"
-            bot.send_photo(245413138, photo.file_id, caption=caption, parse_mode="HTML")
-
-        elif message.document:
-            caption = f"📁 Файл от {user_link}"
-            if message.caption:
-                caption += f"\n\n{message.caption}"
-            bot.send_document(245413138, message.document.file_id, caption=caption, parse_mode="HTML")
-
-        elif message.voice:
-            bot.send_voice(245413138, message.voice.file_id, caption=f"🎤 Голосовое от {user_link}", parse_mode="HTML")
-
-        elif message.sticker:
-            bot.send_message(245413138, f"🛑 Стикер от {user_link} (ID: {message.sticker.file_id})")
-
-        # Очищаем состояние после обработки
-        user_states.pop(chat_id, None)
-
-        bot.send_message(
-            chat_id,
-            Messages.SUCCESS_SENT,
-            reply_markup=main_menu(is_admin)
-        )
-
-    except Exception as e:
-        user_states.pop(chat_id, None)
-        bot.send_message(
-            chat_id,
-            Errors.DEFAULT,
-            reply_markup=main_menu(is_admin)
-        )
-        monitoring.send_error(str(e), username or str(user_id))
-
-
-# HANDLER - SUPPORT MEDIA
-@bot.message_handler(content_types=['photo', 'document', 'voice', 'sticker'])
-def handle_support_media(message):
-    if user_states.get(message.chat.id) == "support":
-        send_to_support(message)
 
 # ------ UTIL def ------- #
 def set_help_mode(message):
