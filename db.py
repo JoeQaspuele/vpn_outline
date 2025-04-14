@@ -6,6 +6,7 @@ from settings import DEFAULT_SERVER_ID
 
 
 PREMIUM_DURATION_DAYS = 31
+DEFAULT_DATA_LIMIT_GB = 15  # если это не глобальная переменная, обязательно добавь
 FREE_DATA_LIMIT_GB = 15
 DB_PATH = 'users.db'
 
@@ -31,6 +32,36 @@ def init_db():
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_keys_user_id ON user_keys(user_id)')
         conn.commit()
+
+from datetime import datetime
+
+
+def init_user(user_id: int):
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+        cursor = conn.cursor()
+
+        # Проверка на существование пользователя
+        cursor.execute('SELECT 1 FROM users WHERE user_id = ?', (user_id,))
+        if cursor.fetchone():
+            return
+
+        now = datetime.utcnow().isoformat()
+
+        cursor.execute('''
+            INSERT INTO users (
+                user_id, key_name, isPremium, premium_since, premium_until,
+                limit, used, traffic_start_bytes, traffic_start_date,
+                total_bytes, monthly_gb, total_bytes_days
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_id, None, 0, None, None,
+            DEFAULT_DATA_LIMIT_GB, 0, 0, now,
+            0, 0, 0
+        ))
+
+        conn.commit()
+
 
 def user_has_key(user_id: int) -> bool:
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
