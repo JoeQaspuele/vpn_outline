@@ -501,10 +501,14 @@ def _send_key(message, key, server_id):
 
 def _send_error_message(message, error_message):
     bot.send_message(message.chat.id, error_message)
-    monitoring.send_error(
-        error_message,
-        message.from_user.username or "нет username"
-    )
+
+    # временно отключим monitoring:
+    print(f"[ERROR] {error_message}")
+    # monitoring.send_error(
+    #     error_message,
+    #     message.from_user.username or "нет username"
+    # )
+
 
 
 def send_to_support(message):
