@@ -4,9 +4,8 @@ from outline import api
 from datetime import datetime, timedelta
 from settings import DEFAULT_SERVER_ID
 
-
+DEFAULT_DATA_LIMIT_GB = 15
 PREMIUM_DURATION_DAYS = 31
-DEFAULT_DATA_LIMIT_GB = 15  # если это не глобальная переменная, обязательно добавь
 FREE_DATA_LIMIT_GB = 15
 DB_PATH = 'users.db'
 
@@ -33,9 +32,6 @@ def init_db():
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_keys_user_id ON user_keys(user_id)')
         conn.commit()
 
-from datetime import datetime
-
-
 def init_user(user_id: int):
     """Инициализирует нового пользователя с дефолтными значениями"""
     with sqlite3.connect(DB_PATH) as conn:
@@ -43,13 +39,11 @@ def init_user(user_id: int):
         now = datetime.utcnow().isoformat()
         cursor.execute('''
             INSERT OR IGNORE INTO users (
-                user_id, isPremium, premium_since, premium_until, limit, used, 
+                user_id, isPremium, premium_since, premium_until, 'limit', used, 
                 traffic_start_bytes, traffic_start_date, total_bytes, monthly_gb, total_bytes_days
             ) VALUES (?, 0, NULL, NULL, ?, 0, 0, ?, 0, 0, 0)
         ''', (user_id, DEFAULT_DATA_LIMIT_GB, now))
         conn.commit()
-
-
 
 def user_has_key(user_id: int) -> bool:
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
@@ -101,7 +95,7 @@ def remove_key(user_id: int):
         cursor = conn.cursor()
         cursor.execute('DELETE FROM user_keys WHERE user_id = ?', (user_id,))
         conn.commit()
-        
+
 # Сделать премиум пользователя (НОВОЕ)
 def set_premium(user_id: int, days: int):
     now = datetime.utcnow()
@@ -126,8 +120,38 @@ def set_premium(user_id: int, days: int):
 
     return new_limit_gb  # чтобы потом сразу передать в Outline API
 
+# ПРОДЛЕНИЕ ПРЕМИУМА
+def extend_premium(user_id: int, days: int) -> float:
+    """Продлевает премиум на указанное количество дней и обновляет лимит"""
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT premium_until FROM users WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
 
-# Получить всех премиум пользователей
+        now = datetime.utcnow()
+        if row and row[0]:
+            current_until = datetime.fromisoformat(row[0])
+            new_until = current_until + timedelta(days=days)
+        else:
+            new_until = now + timedelta(days=days)
+
+        new_limit_gb = round((50 / 30) * days, 2)
+
+        cursor.execute('''
+            UPDATE users
+            SET isPremium = 1,
+                premium_until = ?,
+                "limit" = "limit" + ?,
+                "used" = 0,
+                traffic_start_bytes = 0,
+                traffic_start_date = ?
+            WHERE user_id = ?
+        ''', (new_until.isoformat(), int(new_limit_gb), now.isoformat(), user_id))
+        conn.commit()
+
+    return new_limit_gb
+
+
 def get_all_premium_users():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -229,7 +253,7 @@ def set_traffic_reset_info(user_id, start_bytes):
     )
     conn.commit()
     conn.close()
-    
+
 # ЕЖЕСУТОЧНАЯ ПРОВЕРКА ПОЛЬЗОВАТЕЛЯ НА ОКОНЧАНИЕ ПРЕМИУМА
 def check_premium_expiration():
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
@@ -258,7 +282,7 @@ def check_premium_expiration():
                     print(f"⚠️ Ошибка при проверке премиума пользователя {user_id}: {e}")
 
         conn.commit()
-        
+
 # НИЖЕ КОД ОБНОВЛЕНИЕ МЕТРИК ДЛЯ CRON
 # Получение всех user_id + ключа
 def get_all_user_ids() -> list[tuple[int, str]]:
@@ -276,25 +300,30 @@ def update_traffic_metrics(user_id: int, current_total_bytes: int):
         old_total = row[0] if row else 0
         start_bytes = row[1] if row else 0
 
-        # Считаем сколько потратил за сутки
-        delta = max(0, current_total_bytes - start_bytes)
+        # Считаем прирост в байтах
+        delta_bytes = max(0, current_total_bytes - start_bytes)
 
-        # Если первый запуск — инициализация
+        # Переводим байты в ГБ
+        delta_gb = round(delta_bytes / 1024**3, 2)
+
         if old_total == 0:
+            # Первый запуск
             cursor.execute('''
                 UPDATE users
                 SET total_bytes = ?, traffic_start_bytes = ?, total_bytes_days = ?, monthly_gb = ?
                 WHERE user_id = ?
-            ''', (current_total_bytes, current_total_bytes, delta, delta, user_id))
+            ''', (current_total_bytes, current_total_bytes, delta_gb, delta_gb, user_id))
         else:
+            # Регулярное обновление
             cursor.execute('''
                 UPDATE users
                 SET total_bytes = ?, total_bytes_days = ?, monthly_gb = monthly_gb + ?
                 WHERE user_id = ?
-            ''', (current_total_bytes, delta, delta, user_id))
+            ''', (current_total_bytes, delta_gb, delta_gb, user_id))
 
         conn.commit()
-        
+
+
 # Сброс monthly_gb в конце месяца
 def reset_monthly_usage():
     with sqlite3.connect(DB_PATH) as conn:
