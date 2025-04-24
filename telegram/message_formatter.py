@@ -16,10 +16,10 @@ def make_message_for_new_key(app: str, access_key: str,
                              server_id: ServerId) -> str:
    if app == "outline":
       message_to_send = dedent(
-f"""<b>🔑 Твой ключ для доступа к VPN:🔑 </b>
+f"""<b>🔑 Твой ключ для доступа к OUTLINE:🔑 </b>
       \n<code>{access_key}</code>
       \nНажми на 🔑 выше  чтобы скопировать.\nНеобходимо добавить ключ в приложение для доступа.
-      \nСервер VPN: <b>{servers[server_id].location}</b>
+      \nСервер :<b>{servers[server_id].location}</b>
       \nУ тебя бесплатный тариф. Ключ можно использовать на всех устройствах. Ограничений нет.
       \nТвой лимит трафика:<b>15GB</b> на 1 месяц.
       \nСброс трафика происходит 1 числа каждого  месяца.
@@ -36,16 +36,21 @@ f"""<b>🔑 Твой ключ для доступа к VPN:🔑 </b>
 def make_download_message() -> str:
     message_to_send = dedent(
     f"""
-   <a href="{OUTLINE_WINDOWS_DOWNLOAD_LINK}"> Скачать на  Windows 🪟 </a>
-   <a href="{OUTLINE_MACOS_DOWNLOAD_LINK}">Скачать на MacOS 🍏 </a>
-   <a href="{OUTLINE_LINUX_DOWNLOAD_LINK}">Скачать на  Linux 🐧</a>
-   <a href="{OUTLINE_CHOMEOS_DOWNLOAD_LINK}">Скачать на  ChromeOS 🌐</a>
-   <a href="{OUTLINE_IOS_DOWNLOAD_LINK}">Скачать на iOS (AppStore)  🍎</a>
-   <a href="{OUTLINE_ANDROID_DOWNLOAD_LINK}">Скачать на  Android 🤖 </a>
-   <a href="{OUTLINE_ANDROID_APK_DOWNLOAD_LINK}">Скачать APK 📦</a>
+   <a href="{OUTLINE_WINDOWS_DOWNLOAD_LINK}">   Скачать на  Windows 🪟 </a>
 
+   <a href="{OUTLINE_MACOS_DOWNLOAD_LINK}">Скачать на MacOS 🍏 </a>
+
+   <a href="{OUTLINE_LINUX_DOWNLOAD_LINK}">Скачать на  Linux 🐧</a>
+
+   <a href="{OUTLINE_CHOMEOS_DOWNLOAD_LINK}">Скачать на  ChromeOS 🌐</a>
+
+   <a href="{OUTLINE_IOS_DOWNLOAD_LINK}">Скачать на iOS (AppStore)  🍎</a>
+
+   <a href="{OUTLINE_ANDROID_DOWNLOAD_LINK}">Скачать на  Android 🤖 </a>
+
+   <a href="{OUTLINE_ANDROID_APK_DOWNLOAD_LINK}">Скачать APK 📦</a>
    \nУстановив приложение не удаляй его с телефона, 
-     в дальнейшем может быть не доступен в твоем магазине приложений.
+   в дальнейшем может быть не доступен в твоем магазине приложений.
     """)
     return message_to_send
 
