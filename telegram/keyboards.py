@@ -24,7 +24,7 @@ def main_menu(is_admin: bool = False) -> types.ReplyKeyboardMarkup:
     )
 
     # Четвертый ряд (1 кнопка)
-    #markup.add(types.KeyboardButton(Buttons.DONATE))
+#    markup.add(types.KeyboardButton(Buttons.DONATE))
 
     if is_admin:
         # Отдельный ряд для админки
