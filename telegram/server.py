@@ -1,3 +1,4 @@
+
 import telebot
 from telebot import types
 from settings import (
@@ -61,6 +62,9 @@ def send_welcome(message):
         reply_markup=main_menu(is_admin),
         parse_mode="HTML")
 
+from datetime import datetime
+from telegram.messages import PremiumMessages
+
 @bot.message_handler(func=lambda message: message.text == Buttons.CHECK_TRAFFIC)
 def handle_check_traffic(message):
     user_id = message.chat.id
@@ -69,6 +73,13 @@ def handle_check_traffic(message):
     if not key_id:
         bot.send_message(user_id, PremiumMessages.NO_KEY_FOUND)
         return
+
+    # 🚀 СВЕЖЕЕ ОБНОВЛЕНИЕ ТРАФИКА
+    try:
+        current_total = get_traffic_for_key(key_id, DEFAULT_SERVER_ID)
+        update_traffic_metrics(user_id, current_total)
+    except Exception as e:
+        print(f"[ERROR] Не удалось обновить трафик: {e}")
 
     try:
         user_data = db.get_user_data(user_id)
@@ -80,14 +91,11 @@ def handle_check_traffic(message):
 
         remaining = max(0, round(limit - used_monthly, 2))
         used = round(used_monthly, 2)
-        total_used = round(total_used_bytes / 1024**3, 2)  # байты → ГБ
+        total_used = round(total_used_bytes / 1024**3, 2)
 
-        # Формируем сообщение
         if user_data.get("isPremium"):
             since = user_data.get("premium_since")
             until = user_data.get("premium_until")
-
-            # Даты для текста
             since_text = datetime.fromisoformat(since).strftime('%d.%m.%Y') if since else "неизвестно"
             until_text = datetime.fromisoformat(until).strftime('%d.%m.%Y') if until else "неизвестно"
 
@@ -120,7 +128,7 @@ def handle_check_traffic(message):
         print(f"[ERROR] handle_check_traffic: {e}")
 
 
-# HANDLER - PREMIUM Кнопка
+# HANDLE PREMIUM кнопка (для покупки)
 @bot.message_handler(func=lambda message: message.text == Buttons.PREMIUM)
 def handle_premium(message):
     user_id = message.chat.id
@@ -151,7 +159,6 @@ def handle_admin_panel(message):
     if user_id in ADMIN_IDS:
         user_states[user_id] = "admin_menu"
         bot.send_message(user_id, "🔐 Админ-панель:", reply_markup=admin_menu())
-
         
 # HANDLER - MAKE_PREMIUM
 @bot.message_handler(func=lambda message: message.text == Buttons.MAKE_PREMIUM)
@@ -201,7 +208,6 @@ def process_premium_user_id(message):
             reply_markup=admin_menu()
         )
 
-            # Отправляем поздравление пользователю
         bot.send_message(
             user_id,
             f"""
@@ -217,8 +223,8 @@ def process_premium_user_id(message):
             Если возникнут вопросы — мы всегда на связи 👨‍💻
             """,
             parse_mode="HTML"
-
         )
+
     except ValueError:
         bot.send_message(
             message.chat.id,
@@ -381,7 +387,6 @@ def answer(message):
         )
 
 
-
 # HANDLER - МЕНЮ ПОМОЩь
 @bot.message_handler(commands=['help'])
 @authorize
@@ -508,7 +513,6 @@ def _send_error_message(message, error_message):
     #     error_message,
     #     message.from_user.username or "нет username"
     # )
-
 
 
 def send_to_support(message):
