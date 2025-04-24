@@ -18,6 +18,8 @@ from helpers.exceptions import KeyCreationError, KeyRenamingError, InvalidServer
 import telegram.message_formatter as f
 from helpers.aliases import ServerId
 import db
+from outline.api import get_traffic_for_key
+from db import update_traffic_metrics
 from datetime import datetime, timedelta
 
 assert BOT_API_TOKEN is not None
